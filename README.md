@@ -22,6 +22,11 @@ A single-page map that draws **live road events** from the City of Toronto's
   on the recommended path worst-first (with High/Medium/Low chips and distance).
 - A **Fastest ⟷ Safest** slider re-scores the routes live, letting you trade
   walk time against risk without another API call.
+- **Report an incident** — click the button, pick a severity (burglary /
+  assault / disturbance), add a description, and it drops a colour-coded
+  marker at your current location. Reports are stored server-side, so
+  anyone else with the page open (on any device) sees it too, within a few
+  seconds.
 
 ## How rerouting weighs danger
 
@@ -58,14 +63,19 @@ projection), not just a boolean "near the line" test, so closeness is graded.
    **Maps JavaScript API**, **Directions API**, **Places API**.
    → https://console.cloud.google.com/google/maps-apis/credentials
 2. Open `config.js` and replace `YOUR_API_KEY` with your key.
-3. Serve the folder over HTTP (the Places library needs a real origin):
+3. Install the Python dependencies and start the app server (it serves the
+   frontend *and* the incident-reports API, so use this instead of
+   `python3 -m http.server`):
    ```bash
-   cd map_alert
-   python3 -m http.server 8000
+   poetry install
+   poetry run python3 server.py
    ```
-   Then open http://localhost:8000
+   Then open http://localhost:8000. Other devices on the same network can
+   reach it at `http://<your-machine's-LAN-IP>:8000`.
 
 No key is needed for the event data — it comes from the public CKAN feed.
+Incident reports are stored in a local SQLite file, `reports.db`, created
+automatically next to `server.py` on first run.
 
 ## Files
 
@@ -74,6 +84,7 @@ No key is needed for the event data — it comes from the public CKAN feed.
 | `index.html` | Layout, styles, and the Maps SDK bootstrap.                    |
 | `app.js`     | Data fetch/normalize, markers, filters, routing + scoring.    |
 | `config.js`  | Your API key and the CKAN source/tuning constants.            |
+| `server.py`  | Flask app: serves the frontend + the `/api/reports` incident-report API (SQLite-backed). |
 
 ## Data source & notes
 

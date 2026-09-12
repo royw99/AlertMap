@@ -130,6 +130,21 @@
     }
     .safety-banner b { color: #fbbf24; }
 
+    /* ---- Incident report form ---- */
+    .report-form { margin-top: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
+    .report-cats { display: flex; gap: 6px; margin-bottom: 8px; }
+    .report-cat-btn {
+      flex: 1; border: 2px solid var(--line); background: var(--panel); color: var(--text);
+      padding: 8px 4px; font-size: 12px; font-weight: 600; border-radius: 8px; cursor: pointer;
+    }
+    .report-cat-btn.selected { border-color: var(--cat-color); background: var(--cat-color); color: #0b1017; }
+    .report-form textarea {
+      width: 100%; padding: 8px 10px; border-radius: 8px; border: 1px solid var(--line);
+      background: var(--panel); color: var(--text); font: inherit; resize: vertical; margin-bottom: 8px;
+    }
+    .report-form textarea:focus { outline: none; border-color: var(--accent); }
+    .report-actions { display: flex; gap: 8px; justify-content: flex-end; }
+
     /* ---- Priority slider ---- */
     .priority { margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
     .priority-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
@@ -198,6 +213,24 @@
       <div class="field">
         <label>Destination</label>
         <input id="dest" placeholder="Address or place" autocomplete="off" />
+      </div>
+
+      <div class="field">
+        <button type="button" id="reportBtn" style="width:100%">📍 Report an incident</button>
+      </div>
+      <div id="reportForm" class="report-form" style="display:none">
+        <div class="section-title" style="margin-top:0">New report</div>
+        <div class="report-cats">
+          <button type="button" class="report-cat-btn" data-cat="burglary" style="--cat-color:#ef4444">Burglary</button>
+          <button type="button" class="report-cat-btn" data-cat="assault" style="--cat-color:#f97316">Assault</button>
+          <button type="button" class="report-cat-btn" data-cat="disturbance" style="--cat-color:#eab308">Disturbance</button>
+        </div>
+        <textarea id="reportDesc" placeholder="What's happening?" maxlength="500" rows="3"></textarea>
+        <div class="report-actions">
+          <button type="button" id="reportCancelBtn">Cancel</button>
+          <button type="button" class="primary" id="reportSubmitBtn" disabled>Submit</button>
+        </div>
+        <p class="hint" id="reportHint">Uses your current location.</p>
       </div>
 
       <div class="priority" id="priorityBox" style="display:none">

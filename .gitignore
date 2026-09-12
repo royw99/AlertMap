@@ -1,2 +1,4 @@
 node_modules/
 .DS_Store
+reports.db
+__pycache__/

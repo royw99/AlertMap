@@ -16,9 +16,23 @@ const CATEGORIES = {
   other:        { color: "#64748b", label: "Other" },
 };
 
+// Community incident reports -> colour by severity, stored server-side
+// (see server.py) so a report from one device shows up on every device
+// polling GET /api/reports.
+const REPORT_CATEGORIES = {
+  burglary:    { color: "#ef4444", label: "Burglary" },
+  assault:     { color: "#f97316", label: "Assault" },
+  disturbance: { color: "#eab308", label: "Disturbance" },
+};
+const REPORTS_API = "/api/reports";
+const REPORT_POLL_MS = 5000;
+
 let map, directionsService, placesReady = false;
 let allEvents = [];                 // normalized events from CKAN
 const markers = new Map();          // id -> google.maps.Marker
+let allReports = [];                // community incident reports from the server
+const reportMarkers = new Map();    // report id -> google.maps.Marker
+let selectedReportCategory = null;
 const neighborhoodRisk = new Map(); // normalized boundary name -> 0..100 risk
 let infoWindow;
 const activeFilters = new Set(Object.keys(CATEGORIES)); // categories shown
@@ -55,8 +69,11 @@ window.initApp = async function initApp() {
 
   setupControls();
   setupPlaces();
+  setupReportForm();
 
   await loadEvents();
+  await loadReports();
+  setInterval(loadReports, REPORT_POLL_MS);
 };
 
 function loadNeighborhoodBoundaries() {
@@ -461,6 +478,155 @@ function fmtWindow(e) {
   if (e.start && e.end) return `${e.start.toLocaleDateString([], opt)} → ${e.end.toLocaleDateString([], opt)}`;
   if (e.start) return `from ${e.start.toLocaleDateString([], opt)}`;
   return "";
+}
+
+/* --------------------------------------------------------------------------
+ * Community incident reports — fetched from / posted to server.py's SQLite-
+ * backed API so every device sees every report.
+ * ------------------------------------------------------------------------ */
+async function loadReports() {
+  try {
+    const res = await fetch(REPORTS_API);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    allReports = await res.json();
+    renderReportMarkers();
+  } catch (err) {
+    console.warn("Could not load community reports:", err);
+  }
+}
+
+function reportMarkerIcon(color) {
+  return {
+    path: google.maps.SymbolPath.CIRCLE,
+    fillColor: color,
+    fillOpacity: 0.95,
+    strokeColor: "#fff",
+    strokeWeight: 2,
+    scale: 8,
+  };
+}
+
+function renderReportMarkers() {
+  const seen = new Set();
+  for (const r of allReports) {
+    seen.add(r.id);
+    if (reportMarkers.has(r.id)) continue;
+    const cat = REPORT_CATEGORIES[r.category];
+    if (!cat) continue;
+    const m = new google.maps.Marker({
+      position: new google.maps.LatLng(r.lat, r.lng),
+      map,
+      icon: reportMarkerIcon(cat.color),
+      title: cat.label,
+      zIndex: 10,
+    });
+    m.addListener("click", () => openReportInfo(r, m));
+    reportMarkers.set(r.id, m);
+  }
+  for (const [id, m] of reportMarkers) {
+    if (!seen.has(id)) { m.setMap(null); reportMarkers.delete(id); }
+  }
+}
+
+function openReportInfo(r, marker) {
+  const cat = REPORT_CATEGORIES[r.category];
+  const when = fmtReportTime(r.created_at);
+  infoWindow.setContent(`
+    <div style="font-family:sans-serif;max-width:270px;color:#111">
+      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px">
+        <span style="font-size:11px;font-weight:700;color:#fff;background:${cat.color};padding:1px 7px;border-radius:999px">${cat.label}</span>
+        <span style="font-size:11px;color:#888">${when}</span>
+      </div>
+      <div style="font-size:13px;color:#222">${escapeHtml(r.description)}</div>
+      <div style="font-size:10px;color:#aaa;margin-top:6px">Reported by a nearby user</div>
+    </div>`);
+  infoWindow.open({ map, anchor: marker });
+}
+
+function fmtReportTime(iso) {
+  const d = new Date(iso);
+  if (isNaN(d)) return "";
+  return d.toLocaleString([], { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function setupReportForm() {
+  const btn = document.getElementById("reportBtn");
+  const form = document.getElementById("reportForm");
+  const catBtns = [...document.querySelectorAll(".report-cat-btn")];
+  const desc = document.getElementById("reportDesc");
+  const submitBtn = document.getElementById("reportSubmitBtn");
+  const cancelBtn = document.getElementById("reportCancelBtn");
+  const hint = document.getElementById("reportHint");
+
+  const updateSubmitState = () => {
+    submitBtn.disabled = !selectedReportCategory || !desc.value.trim();
+  };
+
+  const resetReportForm = () => {
+    selectedReportCategory = null;
+    catBtns.forEach((x) => x.classList.remove("selected"));
+    desc.value = "";
+    updateSubmitState();
+    hint.textContent = "Uses your current location.";
+  };
+
+  btn.addEventListener("click", () => {
+    form.style.display = form.style.display === "none" ? "block" : "none";
+  });
+
+  catBtns.forEach((b) => b.addEventListener("click", () => {
+    selectedReportCategory = b.dataset.cat;
+    catBtns.forEach((x) => x.classList.toggle("selected", x === b));
+    updateSubmitState();
+  }));
+
+  desc.addEventListener("input", updateSubmitState);
+
+  cancelBtn.addEventListener("click", () => {
+    form.style.display = "none";
+    resetReportForm();
+  });
+
+  submitBtn.addEventListener("click", () => {
+    if (!navigator.geolocation) {
+      hint.textContent = "Geolocation isn't available in this browser.";
+      return;
+    }
+    submitBtn.disabled = true;
+    hint.textContent = "Getting your location…";
+    const onceHere = (pos, err) => {
+      geoListeners.delete(onceHere);
+      if (err) {
+        hint.textContent = "Couldn't get your location: " + err.message;
+        updateSubmitState();
+        return;
+      }
+      postReport(pos.coords.latitude, pos.coords.longitude);
+    };
+    watchLocation(onceHere);
+  });
+
+  async function postReport(lat, lng) {
+    hint.textContent = "Submitting…";
+    try {
+      const res = await fetch(REPORTS_API, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ lat, lng, category: selectedReportCategory, description: desc.value.trim() }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || ("HTTP " + res.status));
+      allReports.unshift(body);
+      renderReportMarkers();
+      map.panTo(new google.maps.LatLng(lat, lng));
+      form.style.display = "none";
+      resetReportForm();
+      setStatus("Report submitted — thanks.");
+    } catch (err) {
+      hint.textContent = "Couldn't submit: " + err.message;
+      updateSubmitState();
+    }
+  }
 }
 
 /* --------------------------------------------------------------------------
