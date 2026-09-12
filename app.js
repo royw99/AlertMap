@@ -96,8 +96,18 @@ function loadNeighborhoodBoundaries() {
   loadNeighborhoodRisk();
 }
 
+// The two data sources spell a couple of neighborhoods differently — the
+// boundary layer's `hood` field uses the city's official short form, the
+// police data's `INCIDENTNEIGHBORHOOD` a longer variant. Canonicalize the
+// known cases after stripping punctuation/case so both sides land on the
+// same key.
+const NEIGHBORHOOD_NAME_ALIASES = {
+  "mount oliver": "mt oliver",
+  "central north side": "central northside",
+};
 function normalizeNeighborhoodName(name) {
-  return String(name || "").toLowerCase().replace(/[.’']/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  const key = String(name || "").toLowerCase().replace(/[.’']/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+  return NEIGHBORHOOD_NAME_ALIASES[key] || key;
 }
 
 function riskColor(score) {

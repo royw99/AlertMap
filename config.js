@@ -20,7 +20,14 @@ window.CONFIG = {
   USE_SYNTHETIC_DATA: true,
   // Official City of Pittsburgh neighborhood boundaries, served as GeoJSON.
   NEIGHBORHOODS_GEOJSON: "https://pghbridgis.pittsburghpa.gov/federated/rest/services/Neighborhoods/FeatureServer/0/query?where=1%3D1&outFields=hood%2Cacres&f=geojson",
-  NEIGHBORHOOD_RISK_API: "https://data.wprdc.org/api/3/action/datastore_search?resource_id=044f2016-1dfd-4ab0-bc1e-065da05fca2e&limit=10000",
+  // No `sort` here means CKAN returns rows in whatever order the table
+  // happens to store them in, which for this dataset is NOT chronological —
+  // an unsorted limit=10000 pull was landing entirely inside Jan-Apr 2016,
+  // so busy neighborhoods (e.g. Central Business District) show zero
+  // incidents in the sample purely by luck of the draw. Sorting by
+  // INCIDENTTIME desc + the API's practical per-call cap (~32k rows) instead
+  // gets the most recent ~10 months, which covers every active neighborhood.
+  NEIGHBORHOOD_RISK_API: "https://data.wprdc.org/api/3/action/datastore_search?resource_id=044f2016-1dfd-4ab0-bc1e-065da05fca2e&limit=32000&sort=%22INCIDENTTIME%22%20desc",
 
   // Toronto Open Data — "Road Restrictions" dataset (published via CKAN).
   //   Portal:   https://open.toronto.ca/dataset/road-restrictions/

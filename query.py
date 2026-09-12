@@ -3,34 +3,34 @@ import pandas as pd
 
 url = "https://data.wprdc.org/api/3/action/datastore_search"
 
-params = {
-    "resource_id": "b6340d98-69a0-4965-a9b4-3480cea1182b",
-    "limit": 10000
-}
+# params = {
+#     "resource_id": "b6340d98-69a0-4965-a9b4-3480cea1182b",
+#     "limit": 10000
+# }
 
-response = requests.get(url, params=params)
-response.raise_for_status()
-data = response.json()
+# response = requests.get(url, params=params)
+# response.raise_for_status()
+# data = response.json()
 
-records = data["result"]["records"]
+# records = data["result"]["records"]
 
-df = pd.DataFrame(records)
+# df = pd.DataFrame(records)
 
-# Dispatch priority, most life-threatening first (this dataset is Fire/EMS only,
-# so it has no police/crime categories like burglary or stabbing).
-severity_order = ["F0", "Q0", "Q1", "1A", "2A", "F1", "F2", "Q2", "F3", "Q3", "Q4", "F5"]
-severity_rank = {code: i for i, code in enumerate(severity_order)}
+# # Dispatch priority, most life-threatening first (this dataset is Fire/EMS only,
+# # so it has no police/crime categories like burglary or stabbing).
+# severity_order = ["F0", "Q0", "Q1", "1A", "2A", "F1", "F2", "Q2", "F3", "Q3", "Q4", "F5"]
+# severity_rank = {code: i for i, code in enumerate(severity_order)}
 
-cleaned = pd.DataFrame({
-    "created_date": df["call_year"].astype(str) + "-" + df["call_quarter"],
-    "request_type": df["description_short"],
-    "neighborhood": df["city_name"],
-    "_severity_rank": df["priority"].map(severity_rank),
-})
+# cleaned = pd.DataFrame({
+#     "created_date": df["call_year"].astype(str) + "-" + df["call_quarter"],
+#     "request_type": df["description_short"],
+#     "neighborhood": df["city_name"],
+#     "_severity_rank": df["priority"].map(severity_rank),
+# })
 
-cleaned = cleaned.sort_values(["created_date", "_severity_rank"]).drop(columns="_severity_rank")
+# cleaned = cleaned.sort_values(["created_date", "_severity_rank"]).drop(columns="_severity_rank")
 
-print(cleaned)
+# print(cleaned)
 
 # --- Police incident data (real crime categories, e.g. robbery, assault, burglary) ---
 
