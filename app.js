@@ -33,7 +33,6 @@ let pickMode = null;                // null | "origin" | "dest"
 // Live navigation state
 let recommendedRoute = null;        // the currently recommended scored route
 let userLocationMarker = null;
-let navWatchId = null;
 let navigating = false;
 
 /* --------------------------------------------------------------------------
@@ -534,7 +533,44 @@ function setupControls() {
 
 /* --------------------------------------------------------------------------
  * Current location + live navigation (Apple Maps-style "Start")
+ *
+ * A single navigator.geolocation.watchPosition() subscription is shared by
+ * both "use current location" and "Start" navigation, opened lazily on
+ * first use and left running for the rest of the session. Browsers only
+ * show the permission prompt once per subscription, so calling
+ * getCurrentPosition/watchPosition separately for each feature was asking
+ * twice — this keeps it to a single ask.
  * ------------------------------------------------------------------------ */
+let geoWatchId = null;
+let lastKnownPosition = null;
+let lastGeoError = null;
+const geoListeners = new Set(); // (pos, err) => void
+
+function ensureLocationWatch() {
+  if (geoWatchId != null || !navigator.geolocation) return;
+  geoWatchId = navigator.geolocation.watchPosition(
+    (pos) => {
+      lastKnownPosition = pos;
+      lastGeoError = null;
+      geoListeners.forEach((cb) => cb(pos, null));
+    },
+    (err) => {
+      lastGeoError = err;
+      geoListeners.forEach((cb) => cb(null, err));
+    },
+    { enableHighAccuracy: true, maximumAge: 2000, timeout: 15000 }
+  );
+}
+
+// Subscribe `cb` to the shared watch and immediately replay the last known
+// fix/error if we already have one, so callers don't wait on a new update.
+function watchLocation(cb) {
+  geoListeners.add(cb);
+  ensureLocationWatch();
+  if (lastKnownPosition) cb(lastKnownPosition, null);
+  else if (lastGeoError) cb(null, lastGeoError);
+}
+
 function locateMe() {
   if (!navigator.geolocation) {
     setStatus("Geolocation isn't available in this browser.");
@@ -543,21 +579,21 @@ function locateMe() {
   const btn = document.getElementById("locateBtn");
   btn.setAttribute("aria-busy", "true");
   setStatus('<span class="spin"></span> Finding your location…');
-  navigator.geolocation.getCurrentPosition(
-    (pos) => {
-      btn.removeAttribute("aria-busy");
-      const latLng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
-      setPoint("origin", latLng, "My Location");
-      map.panTo(latLng);
-      if (map.setZoom) map.setZoom(16);
-      setStatus("Using your current location as the start.");
-    },
-    (err) => {
-      btn.removeAttribute("aria-busy");
+
+  const onceHere = (pos, err) => {
+    geoListeners.delete(onceHere);
+    btn.removeAttribute("aria-busy");
+    if (err) {
       setStatus("Couldn't get your location: " + err.message);
-    },
-    { enableHighAccuracy: true, timeout: 10000 }
-  );
+      return;
+    }
+    const latLng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+    setPoint("origin", latLng, "My Location");
+    map.panTo(latLng);
+    if (map.setZoom) map.setZoom(16);
+    setStatus("Using your current location as the start.");
+  };
+  watchLocation(onceHere);
 }
 
 function startNavigation() {
@@ -572,24 +608,21 @@ function startNavigation() {
   navigating = true;
   document.getElementById("navBar").style.display = "flex";
   document.getElementById("startNavBtn").style.display = "none";
-  navWatchId = navigator.geolocation.watchPosition(onNavPosition, onNavError, {
-    enableHighAccuracy: true, maximumAge: 2000, timeout: 15000,
-  });
+  watchLocation(onNavPosition);
 }
 
 function stopNavigation() {
   navigating = false;
-  if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
-  navWatchId = null;
+  geoListeners.delete(onNavPosition);
   document.getElementById("navBar").style.display = "none";
   if (recommendedRoute) document.getElementById("startNavBtn").style.display = "";
 }
 
-function onNavError(err) {
-  setStatus("Navigation location error: " + err.message);
-}
-
-function onNavPosition(pos) {
+function onNavPosition(pos, err) {
+  if (err) {
+    setStatus("Navigation location error: " + err.message);
+    return;
+  }
   const latLng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
   placeUserLocationMarker(latLng);
   map.panTo(latLng);
