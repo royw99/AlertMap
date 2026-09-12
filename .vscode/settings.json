@@ -1,0 +1,5 @@
+{
+    "python.defaultInterpreterPath": "/Users/gabrielsouto/Library/Caches/pypoetry/virtualenvs/alertmap-YXkK9_k8-py3.12/bin/python",
+    "python-envs.defaultEnvManager": "ms-python.python:poetry",
+    "python-envs.defaultPackageManager": "ms-python.python:poetry"
+}

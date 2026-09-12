@@ -7,7 +7,9 @@ authors = [
 ]
 requires-python = ">=3.12"
 dependencies = [
-    "ckanapi (>=4.11,<5.0)"
+    "ckanapi (>=4.11,<5.0)",
+    "requests (>=2.34.2,<3.0.0)",
+    "pandas (>=3.0.5,<4.0.0)"
 ]
 
 
