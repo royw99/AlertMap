@@ -11,7 +11,7 @@
 // CKAN Open Data portal and requires no authentication.
 // ---------------------------------------------------------------------------
 window.CONFIG = {
-  GOOGLE_MAPS_API_KEY: "YOUR_API_KEY",
+  GOOGLE_MAPS_API_KEY: "AIzaSyDcXRBQ8sNQNiVVuN4klfu_Q2GzKvBIYHc",
 
   // Map defaults (Pittsburgh downtown).
   DEFAULT_CENTER: { lat: 40.4406, lng: -79.9959 },
