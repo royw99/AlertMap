@@ -18,6 +18,8 @@ window.CONFIG = {
   DEFAULT_ZOOM: 12,
   // Keep Pittsburgh fixtures while testing the real Google basemap.
   USE_SYNTHETIC_DATA: true,
+  // Official City of Pittsburgh neighborhood boundaries, served as GeoJSON.
+  NEIGHBORHOODS_GEOJSON: "https://pghbridgis.pittsburghpa.gov/federated/rest/services/Neighborhoods/FeatureServer/0/query?where=1%3D1&outFields=hood%2Cacres&f=geojson",
 
   // Toronto Open Data — "Road Restrictions" dataset (published via CKAN).
   //   Portal:   https://open.toronto.ca/dataset/road-restrictions/

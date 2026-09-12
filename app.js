@@ -43,6 +43,7 @@ window.initApp = async function initApp() {
   });
   infoWindow = new google.maps.InfoWindow();
   directionsService = new google.maps.DirectionsService();
+  loadNeighborhoodBoundaries();
 
   const srcLink = document.getElementById("srcLink");
   if (srcLink && CFG.CKAN) srcLink.href = CFG.CKAN.portal;
@@ -53,6 +54,34 @@ window.initApp = async function initApp() {
 
   await loadEvents();
 };
+
+function loadNeighborhoodBoundaries() {
+  // Google Data renders GeoJSON as a native map overlay. The guard keeps the
+  // no-key projected demo working with the lightweight mock Maps SDK.
+  if (!map.data || !CFG.NEIGHBORHOODS_GEOJSON) return;
+  map.data.setStyle((feature) => ({
+    fillColor: "#4d8dff",
+    fillOpacity: 0.035,
+    strokeColor: "#9dbbff",
+    strokeOpacity: 0.48,
+    strokeWeight: 1.2,
+    zIndex: 1,
+  }));
+  map.data.addListener("mouseover", (event) => {
+    map.data.overrideStyle(event.feature, {
+      fillColor: "#4d8dff", fillOpacity: 0.12,
+      strokeColor: "#d5e2ff", strokeOpacity: 0.9, strokeWeight: 2.2,
+    });
+  });
+  map.data.addListener("mouseout", (event) => map.data.revertStyle(event.feature));
+  map.data.addListener("click", (event) => {
+    const name = event.feature.getProperty("hood") || "Pittsburgh neighborhood";
+    infoWindow.setContent(`<div style="font:600 13px sans-serif;color:#17202e;padding:2px 4px">${escapeHtml(name)}</div>`);
+    infoWindow.setPosition(event.latLng);
+    infoWindow.open({ map });
+  });
+  map.data.loadGeoJson(CFG.NEIGHBORHOODS_GEOJSON);
+}
 
 /* --------------------------------------------------------------------------
  * Data: fetch + normalize the CKAN Road Restrictions feed

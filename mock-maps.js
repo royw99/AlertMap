@@ -54,6 +54,7 @@
       this.polylines = new Set();
       this.clickCbs = [];
       this._dirty = false;
+      this.data = null;
 
       div.style.position = "relative";
       div.style.background =
