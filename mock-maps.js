@@ -177,6 +177,8 @@
     }
     setIcon(icon) { this.icon = icon; this.map && this.map.scheduleRender(); }
     setZIndex(z) { this.zIndex = z; this.map && this.map.scheduleRender(); }
+    setPosition(pos) { this.position = pos; this.map && this.map.scheduleRender(); }
+    getPosition() { return this.position; }
     setLabel(l) { this.label = l; }
     addListener(ev, cb) { this._cbs[ev] = cb; }
     _fire(ev) { this._cbs[ev] && this._cbs[ev](); }

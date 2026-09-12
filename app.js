@@ -30,6 +30,12 @@ let origin = null, dest = null;
 const routeRenderers = [];          // google.maps.Polyline route overlays
 let pickMode = null;                // null | "origin" | "dest"
 
+// Live navigation state
+let recommendedRoute = null;        // the currently recommended scored route
+let userLocationMarker = null;
+let navWatchId = null;
+let navigating = false;
+
 /* --------------------------------------------------------------------------
  * Entry point (called by the Maps SDK once it finishes loading)
  * ------------------------------------------------------------------------ */
@@ -520,6 +526,138 @@ function setupControls() {
     pickBtn.setAttribute("aria-pressed", pickMode ? "true" : "false");
     updatePickHint();
   });
+
+  document.getElementById("locateBtn").addEventListener("click", locateMe);
+  document.getElementById("startNavBtn").addEventListener("click", startNavigation);
+  document.getElementById("navEndBtn").addEventListener("click", stopNavigation);
+}
+
+/* --------------------------------------------------------------------------
+ * Current location + live navigation (Apple Maps-style "Start")
+ * ------------------------------------------------------------------------ */
+function locateMe() {
+  if (!navigator.geolocation) {
+    setStatus("Geolocation isn't available in this browser.");
+    return;
+  }
+  const btn = document.getElementById("locateBtn");
+  btn.setAttribute("aria-busy", "true");
+  setStatus('<span class="spin"></span> Finding your location…');
+  navigator.geolocation.getCurrentPosition(
+    (pos) => {
+      btn.removeAttribute("aria-busy");
+      const latLng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+      setPoint("origin", latLng, "My Location");
+      map.panTo(latLng);
+      if (map.setZoom) map.setZoom(16);
+      setStatus("Using your current location as the start.");
+    },
+    (err) => {
+      btn.removeAttribute("aria-busy");
+      setStatus("Couldn't get your location: " + err.message);
+    },
+    { enableHighAccuracy: true, timeout: 10000 }
+  );
+}
+
+function startNavigation() {
+  if (!recommendedRoute) {
+    setStatus("Find a route before starting.");
+    return;
+  }
+  if (!navigator.geolocation) {
+    setStatus("Geolocation isn't available in this browser.");
+    return;
+  }
+  navigating = true;
+  document.getElementById("navBar").style.display = "flex";
+  document.getElementById("startNavBtn").style.display = "none";
+  navWatchId = navigator.geolocation.watchPosition(onNavPosition, onNavError, {
+    enableHighAccuracy: true, maximumAge: 2000, timeout: 15000,
+  });
+}
+
+function stopNavigation() {
+  navigating = false;
+  if (navWatchId != null) navigator.geolocation.clearWatch(navWatchId);
+  navWatchId = null;
+  document.getElementById("navBar").style.display = "none";
+  if (recommendedRoute) document.getElementById("startNavBtn").style.display = "";
+}
+
+function onNavError(err) {
+  setStatus("Navigation location error: " + err.message);
+}
+
+function onNavPosition(pos) {
+  const latLng = new google.maps.LatLng(pos.coords.latitude, pos.coords.longitude);
+  placeUserLocationMarker(latLng);
+  map.panTo(latLng);
+  if (map.setZoom) map.setZoom(17);
+  updateNavBanner(latLng);
+}
+
+function placeUserLocationMarker(latLng) {
+  if (!userLocationMarker) {
+    userLocationMarker = new google.maps.Marker({
+      position: latLng, map, zIndex: 1000,
+      icon: {
+        path: google.maps.SymbolPath.CIRCLE,
+        fillColor: "#4d8dff", fillOpacity: 1,
+        strokeColor: "#fff", strokeWeight: 3, scale: 8,
+      },
+    });
+  } else if (userLocationMarker.setPosition) {
+    userLocationMarker.setPosition(latLng);
+  } else {
+    userLocationMarker.position = latLng;
+    userLocationMarker.map && userLocationMarker.map.scheduleRender && userLocationMarker.map.scheduleRender();
+  }
+}
+
+// Distance remaining along the route's own path, not straight-line, so it
+// reflects the road/sidewalk distance still ahead rather than as-the-crow-flies.
+function remainingRouteDistance(route, latLng) {
+  const path = route.overview_path;
+  if (!path || !path.length) return null;
+  const proj = projector(latLng.lat());
+  const p = proj(latLng);
+  let bestIdx = 0, bestDist = Infinity;
+  for (let i = 1; i < path.length; i++) {
+    const d = distToSegment(p, proj(path[i - 1]), proj(path[i]));
+    if (d < bestDist) { bestDist = d; bestIdx = i; }
+  }
+  let remaining = haversineMetres(latLng, path[bestIdx]);
+  for (let i = bestIdx; i < path.length - 1; i++) remaining += haversineMetres(path[i], path[i + 1]);
+  return remaining;
+}
+
+function updateNavBanner(latLng) {
+  const route = recommendedRoute.route;
+  const distM = remainingRouteDistance(route, latLng);
+  const distEl = document.getElementById("navDist");
+  const etaEl = document.getElementById("navEta");
+
+  if (distM != null && distM < 20) {
+    distEl.textContent = "You've arrived";
+    etaEl.textContent = "";
+    stopNavigation();
+    return;
+  }
+
+  distEl.textContent = distM == null ? "—"
+    : (distM >= 1000 ? (distM / 1000).toFixed(1) + " km" : Math.round(distM) + " m") + " to destination";
+
+  const leg = route.legs[0];
+  const totalDist = leg.distance ? leg.distance.value : null;
+  const totalDur = leg.duration ? leg.duration.value : null;
+  if (distM != null && totalDist && totalDur) {
+    const paceSecPerMetre = totalDur / totalDist;
+    const eta = new Date(Date.now() + distM * paceSecPerMetre * 1000);
+    etaEl.textContent = "ETA " + eta.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+  } else {
+    etaEl.textContent = "";
+  }
 }
 
 function setupClickToSet() {
@@ -595,14 +733,18 @@ function swap() {
 }
 
 function clearRoute() {
+  if (navigating) stopNavigation();
   origin = dest = null;
   document.getElementById("origin").value = "";
   document.getElementById("dest").value = "";
   originMarker && originMarker.setMap(null);
   destMarker && destMarker.setMap(null);
   originMarker = destMarker = null;
+  userLocationMarker && userLocationMarker.setMap(null);
+  userLocationMarker = null;
   clearRouteOverlays();
   lastRoutes = null;
+  recommendedRoute = null;
   highlightEvents([]);
   document.getElementById("summary").style.display = "none";
 }
@@ -754,6 +896,8 @@ function scoreAndRender(routes, fit = true) {
     }
   }
 
+  recommendedRoute = recommended;
+
   // Draw non-recommended routes dimmed, recommended on top highlighted.
   scored.forEach((s) => {
     if (s === recommended) return;
@@ -878,6 +1022,8 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
   // Show fastest first, then recommended (unless identical).
   cards.insertAdjacentHTML("beforeend", card(fastest, fastest === recommended));
   if (recommended !== fastest) cards.insertAdjacentHTML("beforeend", card(recommended, true));
+
+  document.getElementById("startNavBtn").style.display = navigating ? "none" : "flex";
 }
 
 /* --------------------------------------------------------------------------
