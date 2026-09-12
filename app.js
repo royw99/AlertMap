@@ -1237,7 +1237,6 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
       <div class="metrics">
         <span><b>${s.distanceText || "—"}</b></span>
         <span><b>${s.durationText || "—"}</b></span>
-        <span><b>${s.count}</b> event${s.count === 1 ? "" : "s"}</span>
       </div>
       <div class="danger-row">
         <span class="danger-tag" style="background:${TIER_COLOR[tier] || "#64748b"}">${tier} risk</span>
