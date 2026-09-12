@@ -82,7 +82,7 @@ function loadNeighborhoodBoundaries() {
   map.data.addListener("click", (event) => {
     const name = event.feature.getProperty("hood") || "Pittsburgh neighborhood";
     const risk = neighborhoodRisk.get(normalizeNeighborhoodName(name));
-    const riskText = risk == null ? "No incident data" : `${risk.toFixed(1)} / 100 risk`;
+    const riskText = risk == null ? "No incident data" : `${risk.toFixed(1)} / 100 · ${riskCategory(risk)}`;
     infoWindow.setContent(`<div style="font:600 13px sans-serif;color:#17202e;padding:2px 4px"><div>${escapeHtml(name)}</div><div style="font-weight:400;margin-top:3px">${riskText}</div></div>`);
     infoWindow.setPosition(event.latLng);
     infoWindow.open({ map });
@@ -110,10 +110,25 @@ function normalizeNeighborhoodName(name) {
   return NEIGHBORHOOD_NAME_ALIASES[key] || key;
 }
 
+// Same 0-100 buckets as risk_category() in query.py, so the map and the
+// data pipeline agree on what "High Risk" means.
+function riskCategory(score) {
+  if (score < 12) return "Safe";
+  if (score < 25) return "Low Risk";
+  if (score < 45) return "Moderate Risk";
+  if (score < 75) return "High Risk";
+  return "Very High Risk";
+}
+const RISK_CATEGORY_COLOR = {
+  "Safe": "#22c55e",
+  "Low Risk": "#fff23f",
+  "Moderate Risk": "#d48a08",
+  "High Risk": "#ef4444",
+  "Very High Risk": "#8b0a0a",
+};
 function riskColor(score) {
   if (score == null) return "#4d8dff";
-  // 120° = green, 0° = red.
-  return `hsl(${Math.max(0, 120 - score * 1.2)} 78% 52%)`;
+  return RISK_CATEGORY_COLOR[riskCategory(score)];
 }
 
 async function loadNeighborhoodRisk() {
