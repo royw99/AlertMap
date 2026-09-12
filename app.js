@@ -926,6 +926,7 @@ function routeTier(score) {
 function renderSummary(fastest, recommended, scored, safetyNote) {
   const wrap = document.getElementById("summary");
   wrap.style.display = "block";
+  document.getElementById("priorityBox").style.display = "block";
 
   const banner = document.getElementById("safetyBanner");
   if (banner) {
