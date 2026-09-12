@@ -507,10 +507,10 @@ function setupControls() {
   document.getElementById("swapBtn").addEventListener("click", swap);
   document.getElementById("clearBtn").addEventListener("click", clearRoute);
 
-  // Risk and busyness sliders re-score the existing default routes instantly.
-  ["riskWeight", "busyWeight"].forEach((id) => {
-    const input = document.getElementById(id);
-    const label = document.getElementById(id === "riskWeight" ? "riskLabel" : "busyLabel");
+  // The risk slider re-scores the existing default routes instantly.
+  {
+    const input = document.getElementById("riskWeight");
+    const label = document.getElementById("riskLabel");
     input.value = CFG.DANGER.defaultSafety;
     const update = () => {
       const v = +input.value;
@@ -519,7 +519,7 @@ function setupControls() {
     };
     update();
     input.addEventListener("input", update);
-  });
+  }
   const pickBtn = document.getElementById("pickBtn");
   pickBtn.addEventListener("click", () => {
     pickMode = pickMode ? null : (origin ? "dest" : "origin");
@@ -697,26 +697,7 @@ function eventsOnRoute(route) {
 // Current safety preference (0 = fastest, 100 = safest) -> lambda.
 function currentLambda() {
   const risk = document.getElementById("riskWeight");
-  const busy = document.getElementById("busyWeight");
-  return {
-    risk: ((risk ? +risk.value : CFG.DANGER.defaultSafety) / 100) * CFG.DANGER.maxLambda,
-    busy: ((busy ? +busy.value : CFG.DANGER.defaultSafety) / 100) * CFG.DANGER.maxLambda,
-  };
-}
-
-// Temporary deterministic stand-in for the future risk/busyness API.
-// It returns a stable 0..100 score from the route geometry, so moving the
-// slider produces believable, repeatable recommendations without a backend.
-function mockRouteRisk(route) {
-  const path = route.overview_path || [];
-  if (!path.length) return 0;
-  let signal = 0;
-  path.forEach((p, i) => {
-    const lat = typeof p.lat === "function" ? p.lat() : p.lat;
-    const lng = typeof p.lng === "function" ? p.lng() : p.lng;
-    signal += Math.abs(Math.sin(lat * 19.7 + lng * 11.3 + i * 0.73));
-  });
-  return Math.round((signal / path.length) * 100);
+  return ((risk ? +risk.value : CFG.DANGER.defaultSafety) / 100) * CFG.DANGER.maxLambda;
 }
 
 let lastRoutes = null; // cache so the slider can re-score without a new request
@@ -732,15 +713,11 @@ function scoreAndRender(routes, fit = true) {
     const leg = route.legs[0];
     const durationSec = leg.duration ? leg.duration.value : Infinity;
     const dangerScore = hits.reduce((s, h) => s + h.danger, 0);
-    const busyness = mockRouteRisk(route);
     const neighborhood = routeNeighborhoodProfile(route);
-    const combinedRisk = dangerScore + busyness * CFG.DANGER.mockBusynessWeight;
     return {
       route, index: i, hits,
       count: hits.length,
       dangerScore,
-      busyness,
-      combinedRisk,
       neighborhoodRisk: neighborhood.avgRisk,
       neighborhoodBreakdown: neighborhood.breakdown,
       meetsSafetyThreshold: neighborhood.coveredMetres === 0 || neighborhood.avgRisk <= threshold,
@@ -751,9 +728,8 @@ function scoreAndRender(routes, fit = true) {
       // Single blended cost: minutes + weighted danger (road events + the
       // crime-risk of the neighborhoods actually traversed).
       cost: durationSec / 60
-        + lambda.risk * dangerScore
-        + lambda.risk * neighborhood.avgRisk * CFG.DANGER.neighborhoodWeight
-        + lambda.busy * busyness * CFG.DANGER.mockBusynessWeight,
+        + lambda * dangerScore
+        + lambda * neighborhood.avgRisk * CFG.DANGER.neighborhoodWeight,
     };
   });
 
@@ -890,7 +866,6 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
         <span><b>${s.durationText || "—"}</b></span>
         <span><b>${s.distanceText || "—"}</b></span>
         <span><b>${s.count}</b> event${s.count === 1 ? "" : "s"}</span>
-        <span><b>${s.busyness}%</b> busy</span>
       </div>
       <div class="danger-row">
         <span class="danger-tag" style="background:${TIER_COLOR[tier] || "#64748b"}">${tier} risk</span>
