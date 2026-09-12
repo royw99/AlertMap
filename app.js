@@ -94,7 +94,6 @@ function loadNeighborhoodBoundaries() {
   map.data.setStyle(style);
   map.data.addListener("mouseover", (event) => {
     map.data.overrideStyle(event.feature, {
-      fillColor: "#4d8dff", fillOpacity: 0.12,
       strokeColor: "#d5e2ff", strokeOpacity: 0.9, strokeWeight: 2.2,
     });
   });
