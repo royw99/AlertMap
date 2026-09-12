@@ -318,7 +318,7 @@ async function loadEvents() {
     setStatus(allEvents.length + " live road events loaded · click two points or search to route.");
   } catch (err) {
     console.error(err);
-    setStatus("Could not load events from CKAN: " + err.message);
+    setStatus("Live road events unavailable — routing is still available.");
   }
 }
 
@@ -1262,7 +1262,14 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
 /* --------------------------------------------------------------------------
  * Helpers
  * ------------------------------------------------------------------------ */
-function setStatus(html) { document.getElementById("status").innerHTML = html; }
+function setStatus(html) {
+  const status = document.getElementById("status");
+  const text = String(html).replace(/<[^>]*>/g, "");
+  const isError = /\b(error|failed|couldn't|cannot|unavailable|rejected)\b/i.test(text);
+  status.classList.toggle("error", isError);
+  status.classList.toggle("route-warning", !isError && /\b(risk|danger|safest|safety)\b/i.test(text));
+  status.innerHTML = html;
+}
 
 function escapeHtml(s) {
   return String(s).replace(/[&<>"']/g, (c) =>

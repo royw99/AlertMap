@@ -307,11 +307,19 @@
   <script>
     window.addEventListener("error", (event) => {
       const status = document.getElementById("status");
-      if (status) status.textContent = "Demo error: " + (event.error?.message || event.message);
+      if (status) {
+        status.classList.remove("route-warning");
+        status.classList.add("error");
+        status.textContent = "Demo error: " + (event.error?.message || event.message);
+      }
     });
     window.addEventListener("unhandledrejection", (event) => {
       const status = document.getElementById("status");
-      if (status) status.textContent = "Demo error: " + (event.reason?.message || event.reason);
+      if (status) {
+        status.classList.remove("route-warning");
+        status.classList.add("error");
+        status.textContent = "Demo error: " + (event.reason?.message || event.reason);
+      }
     });
     // Boot: guard against a missing key, then load the Maps JS SDK dynamically
     // so we can inject the key from config.js and use an async callback.
