@@ -70,8 +70,26 @@ projection), not just a boolean "near the line" test, so closeness is graded.
    poetry install
    poetry run python3 server.py
    ```
-   Then open http://localhost:8000. Other devices on the same network can
-   reach it at `http://<your-machine's-LAN-IP>:8000`.
+   Then open **http://localhost:8000** on this machine — that's all you need
+   for solo testing.
+
+4. **To let other devices (phones, etc.) use it too — including submitting
+   reports** — they need to reach the server over HTTPS. `navigator.geolocation`
+   (used by "Use current location" and "Report an incident") only works on a
+   secure origin, and `localhost` is the only exception; a plain `http://`
+   address on another device won't get a location. The simplest fix is a
+   [Cloudflare Tunnel](https://github.com/cloudflare/cloudflared), which
+   gives you a real, trusted HTTPS URL (no certificate warnings) with no
+   account needed:
+   ```bash
+   brew install cloudflared      # one-time
+   cloudflared tunnel --url http://localhost:8000
+   ```
+   It prints a URL like `https://some-random-words.trycloudflare.com` —
+   share that with any device. It changes every time you restart the
+   tunnel, and stops working as soon as you stop it (Ctrl+C). Note this
+   briefly makes the app reachable by anyone with that link, not just your
+   WiFi, for as long as the tunnel is running.
 
 No key is needed for the event data — it comes from the public CKAN feed.
 Incident reports are stored in a local SQLite file, `reports.db`, created

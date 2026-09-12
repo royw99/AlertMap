@@ -113,4 +113,11 @@ def frontend_file(filename):
 
 if __name__ == "__main__":
     init_db()
-    app.run(host="0.0.0.0", port=8000, debug=True)
+    # Plain HTTP: navigator.geolocation (used by "Use current location" and
+    # "Report an incident") requires a secure context, which localhost
+    # always satisfies without TLS. For other devices, run this behind a
+    # tunnel (e.g. `cloudflared tunnel --url http://localhost:8000`) that
+    # terminates HTTPS with a trusted certificate instead of adding a
+    # self-signed cert here, which just trades one problem (no HTTPS) for
+    # another (every device has to click through a certificate warning).
+    app.run(host="0.0.0.0", port=8000, debug=False)
