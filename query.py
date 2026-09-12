@@ -79,13 +79,13 @@ neighborhood_safety["risk_score"] = (
 
 
 def risk_category(score):
-    if score < 20:
+    if score < 12:
         return "Safe"
-    elif score < 40:
+    elif score < 25:
         return "Low Risk"
-    elif score < 60:
+    elif score < 45:
         return "Moderate Risk"
-    elif score < 80:
+    elif score < 75:
         return "High Risk"
     else:
         return "Very High Risk"
