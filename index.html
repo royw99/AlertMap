@@ -97,6 +97,21 @@
 
     .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 
+    /* ---- Export confirmation ---- */
+    #exportDialog {
+      position: fixed; inset: 0; z-index: 100;
+      display: none; place-items: center; padding: 20px;
+      background: rgba(9, 13, 20, .78);
+    }
+    #exportDialog.open { display: grid; }
+    #exportDialog .dialog-box {
+      width: min(100%, 390px); background: var(--panel); border: 1px solid var(--line);
+      border-radius: 12px; padding: 20px; box-shadow: 0 16px 50px rgba(0,0,0,.5);
+    }
+    #exportDialog h2 { margin: 0 0 8px; font-size: 17px; }
+    #exportDialog p { margin: 0 0 16px; color: var(--muted); }
+    #exportDialog .dialog-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
     /* ---- Route summary ---- */
     #summary { margin-top: 14px; display: none; }
     .route-card {
@@ -244,7 +259,10 @@
         <div class="section-title">Route options</div>
         <div id="safetyBanner" class="safety-banner" style="display:none"></div>
         <div id="routeCards"></div>
-        <button class="primary" id="startNavBtn">Start</button>
+        <div style="display:flex;gap:8px">
+          <button class="primary" id="startNavBtn" style="flex:1">Start</button>
+          <button id="exportBtn" title="Export route as PNG" aria-label="Export route as PNG">Export PNG</button>
+        </div>
       </div>
     </div>
     <div class="status" id="status"><span class="spin"></span> Loading…</div>
@@ -269,6 +287,17 @@
         <p style="color:var(--muted);font-size:12px">
           Get one at <a href="https://console.cloud.google.com/google/maps-apis/credentials" target="_blank" rel="noopener">Google Cloud Console</a>.
         </p>
+      </div>
+    </div>
+  </div>
+
+  <div id="exportDialog" role="dialog" aria-modal="true" aria-labelledby="exportTitle">
+    <div class="dialog-box">
+      <h2 id="exportTitle">Download route map?</h2>
+      <p>This will save a PNG showing your recommended route and the surrounding map.</p>
+      <div class="dialog-actions">
+        <button type="button" id="exportCancelBtn">Cancel</button>
+        <button type="button" class="primary" id="exportConfirmBtn">Download PNG</button>
       </div>
     </div>
   </div>

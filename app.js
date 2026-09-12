@@ -682,6 +682,95 @@ function setupControls() {
   document.getElementById("locateBtn").addEventListener("click", locateMe);
   document.getElementById("startNavBtn").addEventListener("click", startNavigation);
   document.getElementById("navEndBtn").addEventListener("click", stopNavigation);
+  setupExport();
+}
+
+function setupExport() {
+  const dialog = document.getElementById("exportDialog");
+  const open = () => {
+    if (!recommendedRoute) {
+      setStatus("Find a route before exporting.");
+      return;
+    }
+    dialog.classList.add("open");
+    document.getElementById("exportConfirmBtn").focus();
+  };
+  const close = () => dialog.classList.remove("open");
+  document.getElementById("exportBtn").addEventListener("click", open);
+  document.getElementById("exportCancelBtn").addEventListener("click", close);
+  document.getElementById("exportConfirmBtn").addEventListener("click", async () => {
+    close();
+    await exportRoutePng();
+  });
+  dialog.addEventListener("click", (event) => {
+    if (event.target === dialog) close();
+  });
+  document.addEventListener("keydown", (event) => {
+    if (event.key === "Escape" && dialog.classList.contains("open")) close();
+  });
+}
+
+async function exportRoutePng() {
+  const button = document.getElementById("exportBtn");
+  button.disabled = true;
+  setStatus('<span class="spin"></span> Preparing your route PNG…');
+  try {
+    const blob = document.getElementById("demoRibbon")
+      ? await demoMapPng()
+      : await staticMapPng();
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "alertmap-route.png";
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    setStatus("Route PNG downloaded.");
+  } catch (err) {
+    console.error("Could not export route:", err);
+    setStatus("Could not export route: " + err.message);
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function staticMapPng() {
+  const path = recommendedRoute.route.overview_path.map((point) => `${point.lat()},${point.lng()}`).join("|");
+  const params = new URLSearchParams({
+    size: "640x400", scale: "2", maptype: "roadmap", key: CFG.GOOGLE_MAPS_API_KEY,
+    path: `color:0x22c55eff|weight:7|${path}`,
+  });
+  params.append("markers", `color:blue|label:A|${origin.lat()},${origin.lng()}`);
+  params.append("markers", `color:green|label:B|${dest.lat()},${dest.lng()}`);
+  const url = "https://maps.googleapis.com/maps/api/staticmap?" + params;
+  return fetch(url).then((res) => {
+    if (!res.ok) throw new Error("Static Maps returned HTTP " + res.status);
+    return res.blob();
+  });
+}
+
+function demoMapPng() {
+  const svg = map && map.svg;
+  if (!svg) return Promise.reject(new Error("Map is not ready"));
+  const width = map.div.clientWidth || 800;
+  const height = map.div.clientHeight || 600;
+  const source = new XMLSerializer().serializeToString(svg);
+  const image = new Image();
+  const canvas = document.createElement("canvas");
+  canvas.width = width * 2;
+  canvas.height = height * 2;
+  return new Promise((resolve, reject) => {
+    image.onload = () => {
+      const ctx = canvas.getContext("2d");
+      ctx.fillStyle = "#0d1420";
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      ctx.drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((blob) => blob ? resolve(blob) : reject(new Error("PNG encoding failed")), "image/png");
+    };
+    image.onerror = () => reject(new Error("Could not render the demo map"));
+    image.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(source);
+  });
 }
 
 /* --------------------------------------------------------------------------
