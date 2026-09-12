@@ -59,8 +59,6 @@
       background: var(--panel-2); color: var(--text); font-size: 14px;
     }
     .field input:focus { outline: none; border-color: var(--accent); }
-    .row { display: flex; gap: 8px; }
-    .row > * { flex: 1; }
 
     .input-with-btn { position: relative; }
     .input-with-btn input { padding-right: 38px; }
@@ -96,8 +94,6 @@
     button:hover { border-color: var(--accent); }
     button.primary { background: var(--accent); border-color: var(--accent); color: #fff; font-weight: 600; }
     button.primary:hover { filter: brightness(1.08); }
-    button.ghost { background: transparent; }
-    button[aria-pressed="true"] { border-color: var(--accent); box-shadow: inset 0 0 0 1px var(--accent); }
 
     .hint { color: var(--muted); font-size: 12px; margin: 6px 0 0; }
 
@@ -195,28 +191,19 @@
       <div class="field">
         <label>Start</label>
         <div class="input-with-btn">
-          <input id="origin" placeholder="Address, place, or click the map" autocomplete="off" />
+          <input id="origin" placeholder="Address or place" autocomplete="off" />
           <button type="button" class="icon-btn" id="locateBtn" title="Use current location" aria-label="Use current location">⌖</button>
         </div>
       </div>
       <div class="field">
         <label>Destination</label>
-        <input id="dest" placeholder="Address, place, or click the map" autocomplete="off" />
+        <input id="dest" placeholder="Address or place" autocomplete="off" />
       </div>
-      <div class="row">
-        <button class="primary" id="routeBtn">Suggest route</button>
-        <button class="ghost" id="swapBtn" title="Swap start/destination">⇅ Swap</button>
-      </div>
-      <div class="row" style="margin-top:8px">
-        <button id="pickBtn" aria-pressed="false" title="Click the map to drop start then destination">📍 Click-to-set</button>
-        <button class="ghost" id="clearBtn">Clear</button>
-      </div>
-      <p class="hint" id="pickHint" hidden>Click the map to set <b id="pickWhat">start</b>.</p>
 
       <div class="priority">
         <div class="priority-head"><span>Risk avoidance</span><span id="riskLabel" class="priority-val">Balanced</span></div>
         <input type="range" id="riskWeight" min="0" max="100" value="45" />
-        <div class="priority-ends"><span>Ignore risk</span><span>Avoid risk 🛡️</span></div>
+        <div class="priority-ends"><span>Ignore risk</span><span>Avoid risk</span></div>
         <p class="hint" style="margin-top:6px">Also sets your safety threshold — routes through higher-crime neighborhoods than this get swapped for a safer alternative.</p>
       </div>
 
@@ -224,12 +211,8 @@
         <div class="section-title">Route options</div>
         <div id="safetyBanner" class="safety-banner" style="display:none"></div>
         <div id="routeCards"></div>
-        <button class="primary" id="startNavBtn">🧭 Start</button>
+        <button class="primary" id="startNavBtn">Start</button>
       </div>
-
-      <p class="hint" style="margin-top:16px">
-        Source: local synthetic Pittsburgh fixtures for testing. Replace with a live risk/event API when available.
-      </p>
     </div>
     <div class="status" id="status"><span class="spin"></span> Loading…</div>
   </aside>

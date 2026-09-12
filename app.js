@@ -28,7 +28,6 @@ let activeOnly = false;
 let originMarker = null, destMarker = null;
 let origin = null, dest = null;
 const routeRenderers = [];          // google.maps.Polyline route overlays
-let pickMode = null;                // null | "origin" | "dest"
 
 // Live navigation state
 let recommendedRoute = null;        // the currently recommended scored route
@@ -56,7 +55,6 @@ window.initApp = async function initApp() {
 
   setupControls();
   setupPlaces();
-  setupClickToSet();
 
   await loadEvents();
 };
@@ -502,10 +500,6 @@ function setupPlaces() {
 }
 
 function setupControls() {
-  document.getElementById("routeBtn").addEventListener("click", computeRoute);
-  document.getElementById("swapBtn").addEventListener("click", swap);
-  document.getElementById("clearBtn").addEventListener("click", clearRoute);
-
   // The risk slider re-scores the existing default routes instantly.
   {
     const input = document.getElementById("riskWeight");
@@ -519,12 +513,6 @@ function setupControls() {
     update();
     input.addEventListener("input", update);
   }
-  const pickBtn = document.getElementById("pickBtn");
-  pickBtn.addEventListener("click", () => {
-    pickMode = pickMode ? null : (origin ? "dest" : "origin");
-    pickBtn.setAttribute("aria-pressed", pickMode ? "true" : "false");
-    updatePickHint();
-  });
 
   document.getElementById("locateBtn").addEventListener("click", locateMe);
   document.getElementById("startNavBtn").addEventListener("click", startNavigation);
@@ -693,34 +681,6 @@ function updateNavBanner(latLng) {
   }
 }
 
-function setupClickToSet() {
-  map.addListener("click", (ev) => {
-    if (!pickMode) return;
-    setPoint(pickMode, ev.latLng, null);
-    reverseGeocode(ev.latLng, pickMode);
-    pickMode = pickMode === "origin" ? "dest" : null;
-    document.getElementById("pickBtn").setAttribute("aria-pressed", pickMode ? "true" : "false");
-    updatePickHint();
-  });
-}
-
-function updatePickHint() {
-  const hint = document.getElementById("pickHint");
-  if (!pickMode) { hint.hidden = true; return; }
-  hint.hidden = false;
-  document.getElementById("pickWhat").textContent = pickMode === "origin" ? "start" : "destination";
-}
-
-let geocoder;
-function reverseGeocode(latLng, which) {
-  geocoder = geocoder || new google.maps.Geocoder();
-  geocoder.geocode({ location: latLng }, (res, status) => {
-    if (status === "OK" && res[0]) {
-      document.getElementById(which === "origin" ? "origin" : "dest").value = res[0].formatted_address;
-    }
-  });
-}
-
 function setPoint(which, latLng, label) {
   if (which === "origin") {
     origin = latLng;
@@ -735,8 +695,6 @@ function setPoint(which, latLng, label) {
   }
 
   // Once both endpoints exist, automatically ask Directions for alternatives.
-  // This makes autocomplete and click-to-set feel like one continuous flow;
-  // the Find route button remains available when the user wants to refresh.
   if (origin && dest) computeRoute();
 }
 
@@ -750,36 +708,6 @@ function endpointMarker(latLng, letter, color) {
       scale: 1.6, anchor: new google.maps.Point(12, 22), labelOrigin: new google.maps.Point(12, 10),
     },
   });
-}
-
-function swap() {
-  const o = document.getElementById("origin"), d = document.getElementById("dest");
-  [o.value, d.value] = [d.value, o.value];
-  const to = origin, td = dest;
-  origin = td; dest = to;
-  originMarker && originMarker.setMap(null);
-  destMarker && destMarker.setMap(null);
-  originMarker = destMarker = null;
-  if (origin) originMarker = endpointMarker(origin, "A", "#4d8dff");
-  if (dest) destMarker = endpointMarker(dest, "B", "#22c55e");
-  if (origin && dest) computeRoute();
-}
-
-function clearRoute() {
-  if (navigating) stopNavigation();
-  origin = dest = null;
-  document.getElementById("origin").value = "";
-  document.getElementById("dest").value = "";
-  originMarker && originMarker.setMap(null);
-  destMarker && destMarker.setMap(null);
-  originMarker = destMarker = null;
-  userLocationMarker && userLocationMarker.setMap(null);
-  userLocationMarker = null;
-  clearRouteOverlays();
-  lastRoutes = null;
-  recommendedRoute = null;
-  highlightEvents([]);
-  document.getElementById("summary").style.display = "none";
 }
 
 /* --------------------------------------------------------------------------
