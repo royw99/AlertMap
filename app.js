@@ -671,7 +671,7 @@ function setupControls() {
     input.value = CFG.DANGER.defaultSafety;
     const update = () => {
       const v = +input.value;
-      label.textContent = ["Safe", "Low Risk", "Moderate Risk", "High Risk", "Very High Risk"][Math.round(v / 25)];
+      label.textContent = ["Very high", "High", "Moderate", "Low", "Safe"][Math.round(v / 25)];
       if (lastRoutes) scoreAndRender(lastRoutes, false);
     };
     update();
