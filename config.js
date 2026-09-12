@@ -58,6 +58,11 @@ window.CONFIG = {
     // Temporary local risk-service substitute. Replace mockRouteRisk() in
     // app.js with a fetch call when the real endpoint is available.
     mockBusynessWeight: 0.12,
+    // Neighborhood crime-risk score (0-100, from the live WPRDC/ArcGIS overlay
+    // in app.js) is folded into cost the same way as busyness, scaled down to
+    // match the other terms since it's a 0-100 score rather than a small
+    // multiplier sum.
+    neighborhoodWeight: 0.09,
     defaultSafety: 45,             // initial slider position (0 = fastest, 100 = safest)
     // Route-level danger tiers for the summary badge.
     tiers: { medium: 6, high: 16 },

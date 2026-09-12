@@ -87,7 +87,12 @@ function loadNeighborhoodBoundaries() {
     infoWindow.setPosition(event.latLng);
     infoWindow.open({ map });
   });
-  map.data.loadGeoJson(CFG.NEIGHBORHOODS_GEOJSON);
+  // Keep the raw polygons too (beyond what map.data exposes for hit-testing)
+  // so routing can measure how much of a route sits inside each boundary.
+  map.data.loadGeoJson(CFG.NEIGHBORHOODS_GEOJSON, null, (features) => {
+    neighborhoodIndex = buildNeighborhoodIndex(features);
+    rescoreIfReady();
+  });
   loadNeighborhoodRisk();
 }
 
@@ -121,9 +126,130 @@ async function loadNeighborhoodRisk() {
       const risk = neighborhoodRisk.get(normalizeNeighborhoodName(feature.getProperty("hood")));
       return { fillColor: riskColor(risk), fillOpacity: risk == null ? 0.035 : 0.18, strokeColor: "#9dbbff", strokeOpacity: 0.48, strokeWeight: 1.2, zIndex: 1 };
     });
+    rescoreIfReady();
   } catch (err) {
     console.warn("Neighborhood risk data unavailable:", err);
   }
+}
+
+/* --------------------------------------------------------------------------
+ * Neighborhood danger for routing — average crime-risk of the neighborhoods
+ * a route actually passes through, built from the same boundaries + risk
+ * data that drive the map overlay above.
+ * ------------------------------------------------------------------------ */
+let neighborhoodIndex = null; // [{ name, key, polygons, bbox }] once boundaries load
+
+// A google.maps.Data.Geometry is a tree of Polygon / MultiPolygon / GeometryCollection
+// nodes; flatten it into plain [lng,lat] ring arrays we can ray-cast against.
+function geometryToPolygons(geometry) {
+  const type = geometry.getType();
+  if (type === "Polygon") {
+    return [geometry.getArray().map((ring) => ring.getArray().map((ll) => [ll.lng(), ll.lat()]))];
+  }
+  if (type === "MultiPolygon" || type === "GeometryCollection") {
+    return geometry.getArray().flatMap(geometryToPolygons);
+  }
+  return [];
+}
+
+function buildNeighborhoodIndex(features) {
+  return features.map((feature) => {
+    const name = feature.getProperty("hood") || "";
+    const polygons = geometryToPolygons(feature.getGeometry());
+    let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+    polygons.forEach((rings) => rings[0].forEach(([x, y]) => {
+      if (x < minX) minX = x; if (x > maxX) maxX = x;
+      if (y < minY) minY = y; if (y > maxY) maxY = y;
+    }));
+    return { name, key: normalizeNeighborhoodName(name), polygons, bbox: [minX, minY, maxX, maxY] };
+  }).filter((nb) => nb.polygons.length);
+}
+
+// Ray-casting point-in-polygon, with a bbox pre-check per feature so a lookup
+// only walks the vertices of neighborhoods that could actually contain it.
+function pointInRing(pt, ring) {
+  let inside = false;
+  for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    const xi = ring[i][0], yi = ring[i][1];
+    const xj = ring[j][0], yj = ring[j][1];
+    const intersect = (yi > pt[1]) !== (yj > pt[1]) &&
+      pt[0] < ((xj - xi) * (pt[1] - yi)) / (yj - yi) + xi;
+    if (intersect) inside = !inside;
+  }
+  return inside;
+}
+function pointInPolygon(pt, rings) {
+  if (!pointInRing(pt, rings[0])) return false;
+  for (let k = 1; k < rings.length; k++) if (pointInRing(pt, rings[k])) return false; // inside a hole
+  return true;
+}
+function neighborhoodAt(lat, lng) {
+  if (!neighborhoodIndex) return null;
+  const pt = [lng, lat];
+  for (const nb of neighborhoodIndex) {
+    if (lng < nb.bbox[0] || lng > nb.bbox[2] || lat < nb.bbox[1] || lat > nb.bbox[3]) continue;
+    if (nb.polygons.some((rings) => pointInPolygon(pt, rings))) {
+      const risk = neighborhoodRisk.get(nb.key);
+      return { name: nb.name, risk: risk == null ? null : risk };
+    }
+  }
+  return null;
+}
+
+function haversineMetres(a, b) {
+  const R = 6371000, rad = (d) => (d * Math.PI) / 180;
+  const dLat = rad(b.lat() - a.lat()), dLng = rad(b.lng() - a.lng());
+  const s = Math.sin(dLat / 2) ** 2 +
+    Math.cos(rad(a.lat())) * Math.cos(rad(b.lat())) * Math.sin(dLng / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(s));
+}
+
+// Walk the route geometry and weight each neighborhood's risk score by how
+// much of the route (in metres) actually sits inside it. Segments outside
+// every known boundary, or inside one whose risk hasn't loaded yet, are
+// skipped rather than counted as either safe or dangerous.
+function routeNeighborhoodProfile(route) {
+  const path = route.overview_path || [];
+  const byName = new Map();
+  let coveredMetres = 0, weightedRisk = 0;
+
+  for (let i = 1; i < path.length; i++) {
+    const a = path[i - 1], b = path[i];
+    const segMetres = haversineMetres(a, b);
+    if (segMetres <= 0) continue;
+    const nb = neighborhoodAt((a.lat() + b.lat()) / 2, (a.lng() + b.lng()) / 2);
+    if (!nb || nb.risk == null) continue;
+    coveredMetres += segMetres;
+    weightedRisk += nb.risk * segMetres;
+    const cur = byName.get(nb.name) || { name: nb.name, risk: nb.risk, metres: 0 };
+    cur.metres += segMetres;
+    byName.set(nb.name, cur);
+  }
+
+  const avgRisk = coveredMetres > 0 ? weightedRisk / coveredMetres : 0;
+  const breakdown = [...byName.values()].sort((x, y) => y.metres - x.metres);
+  return { avgRisk, coveredMetres, breakdown };
+}
+
+// Safety slider (0 = ignore risk, 100 = avoid risk) doubles as the max
+// average neighborhood-risk score the user will tolerate on a route.
+function neighborhoodThreshold() {
+  const risk = document.getElementById("riskWeight");
+  const v = risk ? +risk.value : CFG.DANGER.defaultSafety;
+  return 100 - v;
+}
+
+function neighborhoodTier(avgRisk) {
+  if (avgRisk >= 60) return "High";
+  if (avgRisk >= 30) return "Medium";
+  return "Low";
+}
+
+// Boundaries and risk numbers load asynchronously and independently; once
+// both are in, refresh whatever route is already on screen so it picks up
+// neighborhood-aware scoring without the user needing to re-search.
+function rescoreIfReady() {
+  if (neighborhoodIndex && neighborhoodRisk.size && lastRoutes) scoreAndRender(lastRoutes, false);
 }
 
 /* --------------------------------------------------------------------------
@@ -574,6 +700,7 @@ function scoreAndRender(routes, fit = true) {
   lastRoutes = routes;
   clearRouteOverlays();
   const lambda = currentLambda();
+  const threshold = neighborhoodThreshold();
 
   const scored = routes.map((route, i) => {
     const hits = eventsOnRoute(route);
@@ -581,6 +708,7 @@ function scoreAndRender(routes, fit = true) {
     const durationSec = leg.duration ? leg.duration.value : Infinity;
     const dangerScore = hits.reduce((s, h) => s + h.danger, 0);
     const busyness = mockRouteRisk(route);
+    const neighborhood = routeNeighborhoodProfile(route);
     const combinedRisk = dangerScore + busyness * CFG.DANGER.mockBusynessWeight;
     return {
       route, index: i, hits,
@@ -588,18 +716,48 @@ function scoreAndRender(routes, fit = true) {
       dangerScore,
       busyness,
       combinedRisk,
+      neighborhoodRisk: neighborhood.avgRisk,
+      neighborhoodBreakdown: neighborhood.breakdown,
+      meetsSafetyThreshold: neighborhood.coveredMetres === 0 || neighborhood.avgRisk <= threshold,
       durationSec,
       durationMin: durationSec / 60,
       durationText: leg.duration ? leg.duration.text : "",
       distanceText: leg.distance ? leg.distance.text : "",
-      // Single blended cost: minutes + weighted danger.
-      cost: durationSec / 60 + lambda.risk * dangerScore + lambda.busy * busyness * CFG.DANGER.mockBusynessWeight,
+      // Single blended cost: minutes + weighted danger (road events + the
+      // crime-risk of the neighborhoods actually traversed).
+      cost: durationSec / 60
+        + lambda.risk * dangerScore
+        + lambda.risk * neighborhood.avgRisk * CFG.DANGER.neighborhoodWeight
+        + lambda.busy * busyness * CFG.DANGER.mockBusynessWeight,
     };
   });
 
-  // Fastest = Google's first route. Recommended = lowest blended cost.
+  // Fastest = Google's first route. Best-cost = lowest blended cost.
   const fastest = scored.reduce((a, b) => (b.durationSec < a.durationSec ? b : a), scored[0]);
-  const recommended = scored.slice().sort((a, b) => a.cost - b.cost || a.durationSec - b.durationSec)[0];
+  const bestCost = scored.slice().sort((a, b) => a.cost - b.cost || a.durationSec - b.durationSec)[0];
+
+  // The blended cost already leans away from dangerous neighborhoods as the
+  // slider rises, but it's still a soft tradeoff against drive time. Enforce
+  // the slider as a hard ceiling too: if the best-cost route's average
+  // neighborhood risk still exceeds what the user said they'd tolerate,
+  // switch to the fastest route that actually satisfies it. If nothing does,
+  // fall back to whichever route runs through the lowest-risk neighborhoods.
+  let recommended = bestCost;
+  let safetyNote = null;
+  if (!bestCost.meetsSafetyThreshold) {
+    const withinThreshold = scored.filter((s) => s.meetsSafetyThreshold);
+    if (withinThreshold.length) {
+      const safer = withinThreshold.reduce((a, b) => (b.durationSec < a.durationSec ? b : a));
+      if (safer !== bestCost) {
+        recommended = safer;
+        safetyNote = { kind: "switched", from: bestCost, to: safer, threshold };
+      }
+    } else {
+      const lowestRisk = scored.slice().sort((a, b) => a.neighborhoodRisk - b.neighborhoodRisk)[0];
+      recommended = lowestRisk;
+      safetyNote = { kind: "none-meet", best: lowestRisk, threshold };
+    }
+  }
 
   // Draw non-recommended routes dimmed, recommended on top highlighted.
   scored.forEach((s) => {
@@ -620,10 +778,15 @@ function scoreAndRender(routes, fit = true) {
   // Highlight the events sitting on the recommended route.
   highlightEvents(recommended.hits);
 
-  renderSummary(fastest, recommended, scored);
+  renderSummary(fastest, recommended, scored, safetyNote);
 
-  if (recommended === fastest) {
-    setStatus(`Fastest route is also the safest (danger ${fmtScore(recommended.dangerScore)}).`);
+  if (safetyNote) {
+    setStatus(safetyNote.kind === "switched"
+      ? `Fastest pick ran through risk ${fmtScore(safetyNote.from.neighborhoodRisk)} neighborhoods — above your threshold of ${fmtScore(safetyNote.threshold)}. Switched to a safer route (risk ${fmtScore(safetyNote.to.neighborhoodRisk)}).`
+      : `No route stays under your safety threshold of ${fmtScore(safetyNote.threshold)} — showing the lowest-risk option available (risk ${fmtScore(safetyNote.best.neighborhoodRisk)}).`
+    );
+  } else if (recommended === fastest) {
+    setStatus(`Fastest route is also the safest (danger ${fmtScore(recommended.dangerScore)}, neighborhood risk ${fmtScore(recommended.neighborhoodRisk)}).`);
   } else {
     const extraMin = Math.max(0, recommended.durationMin - fastest.durationMin);
     const cut = Math.round((1 - recommended.dangerScore / (fastest.dangerScore || 1)) * 100);
@@ -660,14 +823,37 @@ function routeTier(score) {
   return score >= t.high ? "High" : score >= t.medium ? "Medium" : "Low";
 }
 
-function renderSummary(fastest, recommended, scored) {
+const NB_TIER_COLOR = { High: "#ef4444", Medium: "#f59e0b", Low: "#22c55e" };
+
+function renderSummary(fastest, recommended, scored, safetyNote) {
   const wrap = document.getElementById("summary");
   wrap.style.display = "block";
+
+  const banner = document.getElementById("safetyBanner");
+  if (banner) {
+    if (safetyNote) {
+      banner.innerHTML = "⚠️ " + (safetyNote.kind === "switched"
+        ? `Fastest route runs through neighborhoods averaging <b>${fmtScore(safetyNote.from.neighborhoodRisk)}</b> risk — above your threshold of <b>${fmtScore(safetyNote.threshold)}</b>. Recommending a safer route instead (<b>${fmtScore(safetyNote.to.neighborhoodRisk)}</b> risk).`
+        : `No alternative stays under your safety threshold of <b>${fmtScore(safetyNote.threshold)}</b>. Showing the lowest-risk option available (<b>${fmtScore(safetyNote.best.neighborhoodRisk)}</b> risk).`);
+      banner.style.display = "block";
+    } else {
+      banner.style.display = "none";
+      banner.innerHTML = "";
+    }
+  }
+
   const cards = document.getElementById("routeCards");
   cards.innerHTML = "";
 
+  const hoodChips = (s) => s.neighborhoodBreakdown.slice(0, 3).map((n) => {
+    const tier = neighborhoodTier(n.risk);
+    return `<span class="hood-chip" style="border-color:${NB_TIER_COLOR[tier]}">${escapeHtml(n.name)} <b style="color:${NB_TIER_COLOR[tier]}">${fmtScore(n.risk)}</b></span>`;
+  }).join("");
+
   const card = (s, isRec) => {
     const tier = routeTier(s.dangerScore);
+    const nbTier = neighborhoodTier(s.neighborhoodRisk);
+    const hasNeighborhoodData = s.neighborhoodBreakdown.length > 0;
     return `
     <div class="route-card ${isRec ? "recommended" : ""}">
       <h3>
@@ -686,6 +872,13 @@ function renderSummary(fastest, recommended, scored) {
         <div class="danger-bar"><div style="width:${Math.min(100, (s.dangerScore / (CFG.DANGER.tiers.high * 1.5)) * 100)}%"></div></div>
         <span class="danger-num">${fmtScore(s.dangerScore)}</span>
       </div>
+      ${hasNeighborhoodData ? `
+      <div class="danger-row">
+        <span class="danger-tag" style="background:${NB_TIER_COLOR[nbTier]}">${nbTier} area risk</span>
+        <div class="danger-bar"><div style="width:${Math.min(100, s.neighborhoodRisk)}%;background:linear-gradient(90deg,#22c55e,#eab308,#ef4444)"></div></div>
+        <span class="danger-num">${fmtScore(s.neighborhoodRisk)}</span>
+      </div>
+      <div class="hood-chips">${hoodChips(s)}</div>` : ""}
     </div>`;
   };
 

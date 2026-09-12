@@ -94,6 +94,19 @@
     .danger-num { font-size: 12px; color: var(--muted); font-variant-numeric: tabular-nums; min-width: 26px; text-align: right; }
     .tier-chip { display: inline-block; font-size: 9px; font-weight: 800; color: #0b1017; padding: 1px 5px; border-radius: 4px; margin-right: 6px; vertical-align: 1px; }
 
+    .hood-chips { display: flex; flex-wrap: wrap; gap: 5px; margin-top: 8px; }
+    .hood-chip {
+      font-size: 10.5px; color: var(--muted); border: 1px solid var(--line); border-radius: 999px;
+      padding: 2px 8px; background: var(--panel);
+    }
+    .hood-chip b { font-variant-numeric: tabular-nums; }
+
+    .safety-banner {
+      font-size: 12px; line-height: 1.5; color: #fde68a; background: #3a2d0a;
+      border: 1px solid #7c5e12; border-radius: 8px; padding: 9px 11px; margin-bottom: 10px;
+    }
+    .safety-banner b { color: #fbbf24; }
+
     /* ---- Priority slider ---- */
     .priority { margin-top: 16px; padding: 12px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel-2); }
     .priority-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
@@ -174,6 +187,7 @@
         <div class="priority-head"><span>Risk avoidance</span><span id="riskLabel" class="priority-val">Balanced</span></div>
         <input type="range" id="riskWeight" min="0" max="100" value="45" />
         <div class="priority-ends"><span>Ignore risk</span><span>Avoid risk 🛡️</span></div>
+        <p class="hint" style="margin-top:6px">Also sets your safety threshold — routes through higher-crime neighborhoods than this get swapped for a safer alternative.</p>
         <div class="priority-head" style="margin-top:12px"><span>Busyness avoidance</span><span id="busyLabel" class="priority-val">Balanced</span></div>
         <input type="range" id="busyWeight" min="0" max="100" value="45" />
         <div class="priority-ends"><span>Ignore traffic</span><span>Avoid traffic 🚦</span></div>
@@ -181,6 +195,7 @@
 
       <div id="summary">
         <div class="section-title">Route options</div>
+        <div id="safetyBanner" class="safety-banner" style="display:none"></div>
         <div id="routeCards"></div>
       </div>
 
