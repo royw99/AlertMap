@@ -17,7 +17,7 @@ REPORT_CATEGORIES = {"burglary", "assault", "disturbance"}
 
 # Only these frontend assets are servable; everything else in BASE_DIR
 # (server.py, reports.db, pyproject.toml, ...) stays off-limits over HTTP.
-FRONTEND_FILES = {"index.html", "app.js", "config.js", "mock-maps.js"}
+FRONTEND_FILES = {"index.html", "app.js", "config.js", "config.local.js", "mock-maps.js"}
 
 app = Flask(__name__)
 

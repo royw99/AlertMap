@@ -10,7 +10,8 @@
 // Nothing else needs a key — the Toronto road-event feed is public.
 // ---------------------------------------------------------------------------
 window.CONFIG = {
-  GOOGLE_MAPS_API_KEY: "AIzaSyDcXRBQ8sNQNiVVuN4klfu_Q2GzKvBIYHc",
+  ...window.CONFIG,
+  GOOGLE_MAPS_API_KEY: window.CONFIG?.GOOGLE_MAPS_API_KEY || "YOUR_API_KEY",
 
   // Map defaults (Pittsburgh downtown).
   DEFAULT_CENTER: { lat: 40.4406, lng: -79.9959 },
