@@ -1,0 +1,92 @@
+# Toronto Event-Aware Router
+
+A single-page map that draws **live road events** from the City of Toronto's
+**CKAN** Open Data portal and recommends the driving route that passes the
+**fewest** of them — "rerouting based on local events."
+
+![panel: search + legend | map: events + routes]
+
+## What it does
+
+- Fetches the [Road Restrictions](https://open.toronto.ca/dataset/road-restrictions/)
+  dataset (published via Toronto's CKAN portal) — ~1,900 live disruptions with
+  coordinates, each typed as **special event**, **road closed**, **construction**,
+  or **hazard**, with a name, description, and active time window.
+- Plots every event as a colour-coded marker with a popup; filter by type or by
+  "active right now."
+- Set a **start** and **destination** (Places autocomplete or click-to-drop),
+  then it requests Google Directions **with alternatives** and gives each route
+  a weighted **danger score** (see below) instead of a plain event count.
+- Draws the **fastest** route dimmed and the **recommended** (least-dangerous)
+  route highlighted, shows each route's risk tier + score, and lists the events
+  on the recommended path worst-first (with High/Medium/Low chips and distance).
+- A **Fastest ⟷ Safest** slider re-scores the routes live, letting you trade
+  drive time against risk without another API call.
+
+## How rerouting weighs danger
+
+Each route's cost is a single number:
+
+```
+cost = drive_minutes + lambda * danger_score
+```
+
+`lambda` (minutes you'll detour per danger point) comes from the slider. The
+`danger_score` is the sum, over every event within ~150 m of the route, of:
+
+```
+severity x type x direction x roadClass x active_now x proximity
+```
+
+using the feed's own signals — all tunable in `config.js` under `DANGER`:
+
+| Factor | Source field | Why it matters |
+|---|---|---|
+| **Severity** | `currImpact` / `maxImpact` (High/Med/Low) | The city's own impact rating — the strongest signal |
+| **Type** | `type` / `specialEvent` | A full road closure or parade outweighs routine construction |
+| **Direction** | `directionsAffected` | Both-directions closures block more than one-way |
+| **Road class** | `roadClass` | Expressway/arterial disruptions ripple into surrounding traffic |
+| **Active now** | `startTime` / `endTime` | Events scheduled for later count much less |
+| **Proximity** | distance to route | On-the-path events count fully; ones ~150 m off fade to zero |
+
+Proximity uses a true point-to-polyline distance (local equirectangular
+projection), not just a boolean "near the line" test, so closeness is graded.
+
+## Setup
+
+1. Get a **Google Maps JavaScript API key** and enable these APIs for it:
+   **Maps JavaScript API**, **Directions API**, **Places API**.
+   → https://console.cloud.google.com/google/maps-apis/credentials
+2. Open `config.js` and replace `YOUR_API_KEY` with your key.
+3. Serve the folder over HTTP (the Places library needs a real origin):
+   ```bash
+   cd map_alert
+   python3 -m http.server 8000
+   ```
+   Then open http://localhost:8000
+
+No key is needed for the event data — it comes from the public CKAN feed.
+
+## Files
+
+| File         | Purpose                                                        |
+|--------------|----------------------------------------------------------------|
+| `index.html` | Layout, styles, and the Maps SDK bootstrap.                    |
+| `app.js`     | Data fetch/normalize, markers, filters, routing + scoring.    |
+| `config.js`  | Your API key and the CKAN source/tuning constants.            |
+
+## Data source & notes
+
+- Source: Toronto Open Data — *Road Restrictions* (Version 3 JSON resource
+  `421c8a17-4ecf-4cae-b084-ccb005ea6cc3`). It sends `Access-Control-Allow-Origin: *`,
+  so the browser can fetch it directly.
+- The feed occasionally emits invalid JSON string escapes; `app.js` repairs
+  them before parsing.
+- "Events" here means anything the city reports as affecting the road network,
+  including festivals/parades (`specialEvent = Yes`) and closures — exactly the
+  things that justify a reroute. The dedicated *Festivals & Events* CKAN feed is
+  currently returning "Access Denied" upstream, so this uses the richer, live,
+  geocoded restrictions feed instead.
+- Rerouting is done by ranking Google's alternative routes; it does not
+  fabricate roads. If every alternative crosses an event, it picks the one with
+  the fewest.
