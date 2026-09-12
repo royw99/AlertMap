@@ -27,7 +27,7 @@ const REPORT_CATEGORIES = {
 const REPORTS_API = "/api/reports";
 const REPORT_POLL_MS = 5000;
 
-let map, directionsService, placesReady = false;
+let map, directionsService;
 let allEvents = [];                 // normalized events from CKAN
 const markers = new Map();          // id -> google.maps.Marker
 let allReports = [];                // community incident reports from the server
@@ -646,7 +646,6 @@ function applyFilters() {
  * ------------------------------------------------------------------------ */
 function setupPlaces() {
   if (!google.maps.places) return;
-  placesReady = true;
   const bias = new google.maps.LatLngBounds(
     { lat: 40.35, lng: -80.12 }, { lat: 40.52, lng: -79.82 } // Pittsburgh-ish
   );

@@ -7,8 +7,7 @@
 //    Places API.
 // 3. Paste the key below (replace YOUR_API_KEY) and reload the page.
 //
-// Nothing else needs a key — the event data comes from Toronto's public
-// CKAN Open Data portal and requires no authentication.
+// Nothing else needs a key — the Toronto road-event feed is public.
 // ---------------------------------------------------------------------------
 window.CONFIG = {
   GOOGLE_MAPS_API_KEY: "AIzaSyDcXRBQ8sNQNiVVuN4klfu_Q2GzKvBIYHc",
@@ -16,8 +15,6 @@ window.CONFIG = {
   // Map defaults (Pittsburgh downtown).
   DEFAULT_CENTER: { lat: 40.4406, lng: -79.9959 },
   DEFAULT_ZOOM: 12,
-  // Keep Pittsburgh fixtures while testing the real Google basemap.
-  USE_SYNTHETIC_DATA: true,
   // Official City of Pittsburgh neighborhood boundaries, served as GeoJSON.
   NEIGHBORHOODS_GEOJSON: "https://pghbridgis.pittsburghpa.gov/federated/rest/services/Neighborhoods/FeatureServer/0/query?where=1%3D1&outFields=hood%2Cacres&f=geojson",
   // No `sort` here means CKAN returns rows in whatever order the table
@@ -29,7 +26,7 @@ window.CONFIG = {
   // gets the most recent ~10 months, which covers every active neighborhood.
   NEIGHBORHOOD_RISK_API: "https://data.wprdc.org/api/3/action/datastore_search?resource_id=044f2016-1dfd-4ab0-bc1e-065da05fca2e&limit=32000&sort=%22INCIDENTTIME%22%20desc",
 
-  // Toronto Open Data — "Road Restrictions" dataset (published via CKAN).
+  // Road-event source: Toronto Open Data — "Road Restrictions" dataset.
   //   Portal:   https://open.toronto.ca/dataset/road-restrictions/
   //   CKAN API: https://ckan0.cf.opendata.inter.prod-toronto.ca/api/3/action/package_show?id=road-restrictions
   //   Resource: 421c8a17-4ecf-4cae-b084-ccb005ea6cc3  (Version 3 - JSON, CORS-enabled)

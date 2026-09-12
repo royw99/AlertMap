@@ -17,7 +17,7 @@ REPORT_CATEGORIES = {"burglary", "assault", "disturbance"}
 
 # Only these frontend assets are servable; everything else in BASE_DIR
 # (server.py, reports.db, pyproject.toml, ...) stays off-limits over HTTP.
-FRONTEND_FILES = {"index.html", "app.js", "config.js", "mock-maps.js", "synthetic-data.js"}
+FRONTEND_FILES = {"index.html", "app.js", "config.js", "mock-maps.js"}
 
 app = Flask(__name__)
 
@@ -113,11 +113,6 @@ def frontend_file(filename):
 
 if __name__ == "__main__":
     init_db()
-    # Plain HTTP: navigator.geolocation (used by "Use current location" and
-    # "Report an incident") requires a secure context, which localhost
-    # always satisfies without TLS. For other devices, run this behind a
-    # tunnel (e.g. `cloudflared tunnel --url http://localhost:8000`) that
-    # terminates HTTPS with a trusted certificate instead of adding a
-    # self-signed cert here, which just trades one problem (no HTTPS) for
-    # another (every device has to click through a certificate warning).
+    # Localhost is a secure context for geolocation; use an HTTPS tunnel for
+    # geolocation on other devices.
     app.run(host="0.0.0.0", port=8000, debug=False)

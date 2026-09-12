@@ -1,8 +1,7 @@
-# Toronto Event-Aware Router
+# Pittsburgh Event-Aware Router
 
-A single-page map that draws **live road events** from the City of Toronto's
-**CKAN** Open Data portal and recommends the walking route that passes the
-**fewest** of them — "rerouting based on local events."
+A single-page Pittsburgh map that combines neighborhood risk with live road
+events from Toronto's CKAN Open Data portal and recommends safer walking routes.
 
 ![panel: search + legend | map: events + routes]
 
@@ -91,7 +90,7 @@ projection), not just a boolean "near the line" test, so closeness is graded.
    briefly makes the app reachable by anyone with that link, not just your
    WiFi, for as long as the tunnel is running.
 
-No key is needed for the event data — it comes from the public CKAN feed.
+No key is needed for the Toronto road-event data — it comes from the public CKAN feed.
 Incident reports are stored in a local SQLite file, `reports.db`, created
 automatically next to `server.py` on first run.
 
@@ -101,12 +100,12 @@ automatically next to `server.py` on first run.
 |--------------|----------------------------------------------------------------|
 | `index.html` | Layout, styles, and the Maps SDK bootstrap.                    |
 | `app.js`     | Data fetch/normalize, markers, filters, routing + scoring.    |
-| `config.js`  | Your API key and the CKAN source/tuning constants.            |
+| `config.js`  | Your API key, data sources, and tuning constants.             |
 | `server.py`  | Flask app: serves the frontend + the `/api/reports` incident-report API (SQLite-backed). |
 
 ## Data source & notes
 
-- Source: Toronto Open Data — *Road Restrictions* (Version 3 JSON resource
+- Road-event source: Toronto Open Data — *Road Restrictions* (Version 3 JSON resource
   `421c8a17-4ecf-4cae-b084-ccb005ea6cc3`). It sends `Access-Control-Allow-Origin: *`,
   so the browser can fetch it directly.
 - The feed occasionally emits invalid JSON string escapes; `app.js` repairs
