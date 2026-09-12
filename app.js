@@ -19,6 +19,7 @@ const CATEGORIES = {
 let map, directionsService, placesReady = false;
 let allEvents = [];                 // normalized events from CKAN
 const markers = new Map();          // id -> google.maps.Marker
+const neighborhoodRisk = new Map(); // normalized boundary name -> 0..100 risk
 let infoWindow;
 const activeFilters = new Set(Object.keys(CATEGORIES)); // categories shown
 let activeOnly = false;
@@ -59,14 +60,18 @@ function loadNeighborhoodBoundaries() {
   // Google Data renders GeoJSON as a native map overlay. The guard keeps the
   // no-key projected demo working with the lightweight mock Maps SDK.
   if (!map.data || !CFG.NEIGHBORHOODS_GEOJSON) return;
-  map.data.setStyle((feature) => ({
-    fillColor: "#4d8dff",
-    fillOpacity: 0.035,
+  const style = (feature) => {
+    const risk = neighborhoodRisk.get(normalizeNeighborhoodName(feature.getProperty("hood")));
+    return {
+    fillColor: riskColor(risk),
+    fillOpacity: risk == null ? 0.035 : 0.18,
     strokeColor: "#9dbbff",
     strokeOpacity: 0.48,
     strokeWeight: 1.2,
     zIndex: 1,
-  }));
+    };
+  };
+  map.data.setStyle(style);
   map.data.addListener("mouseover", (event) => {
     map.data.overrideStyle(event.feature, {
       fillColor: "#4d8dff", fillOpacity: 0.12,
@@ -76,11 +81,49 @@ function loadNeighborhoodBoundaries() {
   map.data.addListener("mouseout", (event) => map.data.revertStyle(event.feature));
   map.data.addListener("click", (event) => {
     const name = event.feature.getProperty("hood") || "Pittsburgh neighborhood";
-    infoWindow.setContent(`<div style="font:600 13px sans-serif;color:#17202e;padding:2px 4px">${escapeHtml(name)}</div>`);
+    const risk = neighborhoodRisk.get(normalizeNeighborhoodName(name));
+    const riskText = risk == null ? "No incident data" : `${risk.toFixed(1)} / 100 risk`;
+    infoWindow.setContent(`<div style="font:600 13px sans-serif;color:#17202e;padding:2px 4px"><div>${escapeHtml(name)}</div><div style="font-weight:400;margin-top:3px">${riskText}</div></div>`);
     infoWindow.setPosition(event.latLng);
     infoWindow.open({ map });
   });
   map.data.loadGeoJson(CFG.NEIGHBORHOODS_GEOJSON);
+  loadNeighborhoodRisk();
+}
+
+function normalizeNeighborhoodName(name) {
+  return String(name || "").toLowerCase().replace(/[.’']/g, "").replace(/[^a-z0-9]+/g, " ").trim().replace(/\s+/g, " ");
+}
+
+function riskColor(score) {
+  if (score == null) return "#4d8dff";
+  // 120° = green, 0° = red.
+  return `hsl(${Math.max(0, 120 - score * 1.2)} 78% 52%)`;
+}
+
+async function loadNeighborhoodRisk() {
+  if (!CFG.NEIGHBORHOOD_RISK_API || !map.data) return;
+  try {
+    const res = await fetch(CFG.NEIGHBORHOOD_RISK_API);
+    if (!res.ok) throw new Error("HTTP " + res.status);
+    const rows = (await res.json()).result.records || [];
+    const totals = new Map();
+    rows.forEach((r) => {
+      const name = normalizeNeighborhoodName(r.INCIDENTNEIGHBORHOOD);
+      const h = Number(r.HIERARCHY);
+      if (!name || !Number.isFinite(h) || h <= 0) return;
+      totals.set(name, (totals.get(name) || 0) + 1 / h);
+    });
+    const values = [...totals.values()];
+    const min = Math.min(...values), max = Math.max(...values);
+    totals.forEach((value, name) => neighborhoodRisk.set(name, max > min ? ((value - min) / (max - min)) * 100 : 0));
+    map.data.setStyle((feature) => {
+      const risk = neighborhoodRisk.get(normalizeNeighborhoodName(feature.getProperty("hood")));
+      return { fillColor: riskColor(risk), fillOpacity: risk == null ? 0.035 : 0.18, strokeColor: "#9dbbff", strokeOpacity: 0.48, strokeWeight: 1.2, zIndex: 1 };
+    });
+  } catch (err) {
+    console.warn("Neighborhood risk data unavailable:", err);
+  }
 }
 
 /* --------------------------------------------------------------------------

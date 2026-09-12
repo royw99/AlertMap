@@ -20,6 +20,7 @@ window.CONFIG = {
   USE_SYNTHETIC_DATA: true,
   // Official City of Pittsburgh neighborhood boundaries, served as GeoJSON.
   NEIGHBORHOODS_GEOJSON: "https://pghbridgis.pittsburghpa.gov/federated/rest/services/Neighborhoods/FeatureServer/0/query?where=1%3D1&outFields=hood%2Cacres&f=geojson",
+  NEIGHBORHOOD_RISK_API: "https://data.wprdc.org/api/3/action/datastore_search?resource_id=044f2016-1dfd-4ab0-bc1e-065da05fca2e&limit=10000",
 
   // Toronto Open Data — "Road Restrictions" dataset (published via CKAN).
   //   Portal:   https://open.toronto.ca/dataset/road-restrictions/
