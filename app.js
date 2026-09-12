@@ -66,7 +66,6 @@ async function loadEvents() {
       const rows = window.SYNTHETIC_ROAD_EVENTS || [];
       allEvents = rows.map(normalizeEvent).filter((e) => e && isFinite(e.lat) && isFinite(e.lng));
       renderMarkers();
-      buildLegend();
       setStatus(allEvents.length + " synthetic Pittsburgh road events loaded · click two points or search to route.");
       return;
     }
@@ -80,7 +79,6 @@ async function loadEvents() {
     const rows = Array.isArray(data.Closure) ? data.Closure : [];
     allEvents = rows.map(normalizeEvent).filter((e) => e && isFinite(e.lat) && isFinite(e.lng));
     renderMarkers();
-    buildLegend();
     setStatus(allEvents.length + " live road events loaded · click two points or search to route.");
   } catch (err) {
     console.error(err);
@@ -246,32 +244,8 @@ function fmtWindow(e) {
 }
 
 /* --------------------------------------------------------------------------
- * Filters + legend
+ * Filters
  * ------------------------------------------------------------------------ */
-function buildLegend() {
-  const counts = {};
-  for (const k of Object.keys(CATEGORIES)) counts[k] = 0;
-  for (const e of allEvents) counts[e.category]++;
-
-  const el = document.getElementById("legend");
-  el.innerHTML = "";
-  for (const [key, c] of Object.entries(CATEGORIES)) {
-    if (!counts[key]) continue;
-    const row = document.createElement("div");
-    row.className = "legend-item";
-    row.dataset.key = key;
-    row.innerHTML = `<span class="dot" style="background:${c.color}"></span>
-                     <span>${c.label}</span>
-                     <span class="count">${counts[key]}</span>`;
-    row.addEventListener("click", () => {
-      if (activeFilters.has(key)) { activeFilters.delete(key); row.classList.add("off"); }
-      else { activeFilters.add(key); row.classList.remove("off"); }
-      applyFilters();
-    });
-    el.appendChild(row);
-  }
-}
-
 function applyFilters() {
   for (const e of allEvents) {
     const m = markers.get(e.id);
@@ -309,11 +283,6 @@ function setupControls() {
   document.getElementById("routeBtn").addEventListener("click", computeRoute);
   document.getElementById("swapBtn").addEventListener("click", swap);
   document.getElementById("clearBtn").addEventListener("click", clearRoute);
-  document.getElementById("activeOnly").addEventListener("change", (e) => {
-    activeOnly = e.target.checked;
-    applyFilters();
-    if (lastRoutes) scoreAndRender(lastRoutes, false);
-  });
 
   // Risk and busyness sliders re-score the existing default routes instantly.
   ["riskWeight", "busyWeight"].forEach((id) => {
@@ -651,40 +620,6 @@ function renderSummary(fastest, recommended, scored) {
   // Show fastest first, then recommended (unless identical).
   cards.insertAdjacentHTML("beforeend", card(fastest, fastest === recommended));
   if (recommended !== fastest) cards.insertAdjacentHTML("beforeend", card(recommended, true));
-
-  // List of events on the recommended route, worst first.
-  const aWrap = document.getElementById("affectedWrap");
-  const list = document.getElementById("affectedList");
-  list.innerHTML = "";
-  aWrap.style.display = "block";
-  if (recommended.hits.length) {
-    recommended.hits
-      .slice()
-      .sort((a, b) => b.danger - a.danger)
-      .forEach((h) => {
-        const e = h.event;
-        const tier = eventTier(e);
-        const div = document.createElement("div");
-        div.className = "affected-item";
-        div.innerHTML = `
-          <div class="t">
-            <span class="tier-chip" style="background:${TIER_COLOR[tier]}">${tier}</span>
-            ${escapeHtml(e.road)}
-          </div>
-          <div class="s">${CATEGORIES[e.category].label}${e.bothDirections ? " · both directions" : ""}` +
-          `${e.roadClass ? " · " + escapeHtml(e.roadClass) : ""} · ${Math.round(h.dist)} m from route</div>`;
-        div.addEventListener("click", () => {
-          map.panTo(e.latLng);
-          map.setZoom(15);
-          openEventInfo(e, markers.get(e.id));
-        });
-        list.appendChild(div);
-      });
-  } else {
-    list.innerHTML = `<div class="affected-item" style="cursor:default">
-      <div class="t">Clear route 🎉</div>
-      <div class="s">No live events within ${CFG.ROUTE_PROXIMITY_METRES} m of this path.</div></div>`;
-  }
 }
 
 /* --------------------------------------------------------------------------
