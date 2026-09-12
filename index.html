@@ -70,9 +70,6 @@
     }
     .icon-btn[aria-busy="true"] { opacity: .6; pointer-events: none; }
 
-    /* ---- Start navigation ---- */
-    #startNavBtn { width: 100%; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 6px; }
-
     .nav-bar {
       position: absolute; top: 12px; left: 12px; right: 12px; z-index: 40;
       background: rgba(23,32,46,.97); border: 1px solid var(--line); border-radius: 12px;
@@ -120,6 +117,9 @@
     }
     .route-card.recommended { border-color: var(--recommend); }
     .route-card h3 { margin: 0 0 6px; font-size: 13px; display: flex; align-items: center; gap: 8px; }
+    .route-risk { margin-top: 8px; color: var(--muted); font-size: 12px; }
+    .route-card .danger-row, .route-card .hood-chips { display: none; }
+    #routeCards { display: block; min-height: 1px; }
     .swatch { width: 12px; height: 12px; border-radius: 3px; display: inline-block; }
     .metrics { display: flex; gap: 14px; color: var(--muted); font-size: 12px; }
     .metrics b { color: var(--text); }
@@ -165,7 +165,10 @@
     .priority-head { display: flex; justify-content: space-between; font-size: 12px; color: var(--muted); margin-bottom: 8px; }
     .priority-val { color: var(--text); font-weight: 600; }
     .priority input[type="range"] { width: 100%; accent-color: var(--accent); }
-    .priority-ends { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .priority-ends { display: grid; grid-template-columns: repeat(5, 1fr); font-size: 11px; color: var(--muted); margin-top: 2px; }
+    .priority-ends span { text-align: center; white-space: nowrap; }
+    .priority-ends span:first-child { text-align: left; }
+    .priority-ends span:last-child { text-align: right; }
 
     /* ---- Filters / legend ---- */
     .section-title { font-size: 11px; text-transform: uppercase; letter-spacing: .6px; color: var(--muted); margin: 18px 0 8px; }
@@ -215,7 +218,7 @@
   <aside id="panel">
     <header>
       <h1>Event-Aware Router · Pittsburgh</h1>
-      <p>Routes around synthetic road events for testing</p>
+      <p>Risk-aware walking routes</p>
     </header>
     <div class="scroll">
       <div class="field">
@@ -249,18 +252,15 @@
       </div>
 
       <div class="priority" id="priorityBox" style="display:none">
-        <div class="priority-head"><span>Risk avoidance</span><span id="riskLabel" class="priority-val">Balanced</span></div>
-        <input type="range" id="riskWeight" min="0" max="100" value="45" />
-        <div class="priority-ends"><span>Ignore risk</span><span>Avoid risk</span></div>
-        <p class="hint" style="margin-top:6px">Also sets your safety threshold — routes through higher-crime neighborhoods than this get swapped for a safer alternative.</p>
+        <div class="priority-head"><span>Route preference</span><span id="riskLabel" class="priority-val">Medium</span></div>
+        <input type="range" id="riskWeight" min="0" max="100" step="25" value="50" />
+        <div class="priority-ends"><span>Safe</span><span>Low</span><span>Moderate</span><span>High</span><span>Very high</span></div>
       </div>
 
       <div id="summary">
-        <div class="section-title">Route options</div>
-        <div id="safetyBanner" class="safety-banner" style="display:none"></div>
+        <div class="section-title">Route</div>
         <div id="routeCards"></div>
         <div style="display:flex;gap:8px">
-          <button class="primary" id="startNavBtn" style="flex:1">Start</button>
           <button id="exportBtn" title="Export route as PNG" aria-label="Export route as PNG">Export PNG</button>
         </div>
       </div>

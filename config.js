@@ -63,7 +63,7 @@ window.CONFIG = {
     // in app.js) is folded into cost the same way as event danger, scaled
     // down to match since it's a 0-100 score rather than a small multiplier sum.
     neighborhoodWeight: 0.09,
-    defaultSafety: 45,             // initial slider position (0 = fastest, 100 = safest)
+    defaultSafety: 50,             // initial slider position: medium (0 = fastest, 100 = safest)
     // Route-level danger tiers for the summary badge.
     tiers: { medium: 6, high: 16 },
   },

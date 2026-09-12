@@ -672,7 +672,7 @@ function setupControls() {
     input.value = CFG.DANGER.defaultSafety;
     const update = () => {
       const v = +input.value;
-      label.textContent = v <= 15 ? "Low" : v < 40 ? "Prefer low" : v <= 60 ? "Balanced" : v < 85 ? "Prefer high" : "Maximum";
+      label.textContent = ["Safe", "Low Risk", "Moderate Risk", "High Risk", "Very High Risk"][Math.round(v / 25)];
       if (lastRoutes) scoreAndRender(lastRoutes, false);
     };
     update();
@@ -680,8 +680,13 @@ function setupControls() {
   }
 
   document.getElementById("locateBtn").addEventListener("click", locateMe);
-  document.getElementById("startNavBtn").addEventListener("click", startNavigation);
   document.getElementById("navEndBtn").addEventListener("click", stopNavigation);
+  document.addEventListener("keydown", (event) => {
+    if (event.key !== "Enter" || event.isComposing || navigating || !recommendedRoute) return;
+    if (event.target.matches("textarea, button, input[type=range]")) return;
+    event.preventDefault();
+    startNavigation();
+  });
   setupExport();
 }
 
@@ -851,7 +856,6 @@ function startNavigation() {
   lastRerouteLatLng = null;
   lastRerouteTime = 0;
   document.getElementById("navBar").style.display = "flex";
-  document.getElementById("startNavBtn").style.display = "none";
   watchLocation(onNavPosition);
 }
 
@@ -859,7 +863,6 @@ function stopNavigation() {
   navigating = false;
   geoListeners.delete(onNavPosition);
   document.getElementById("navBar").style.display = "none";
-  if (recommendedRoute) document.getElementById("startNavBtn").style.display = "";
 }
 
 function onNavPosition(pos, err) {
@@ -1149,14 +1152,7 @@ function scoreAndRender(routes, fit = true) {
 
   recommendedRoute = recommended;
 
-  // Draw non-recommended routes dimmed, recommended on top highlighted.
-  scored.forEach((s) => {
-    if (s === recommended) return;
-    routeRenderers.push(new google.maps.Polyline({
-      path: s.route.overview_path, map,
-      strokeColor: "#7f8ea3", strokeOpacity: 0.55, strokeWeight: 5, zIndex: 3,
-    }));
-  });
+  // Show exactly one route: the current slider-selected route.
   routeRenderers.push(new google.maps.Polyline({
     path: recommended.route.overview_path, map,
     strokeColor: "#22c55e", strokeOpacity: 0.95, strokeWeight: 7, zIndex: 4,
@@ -1218,19 +1214,6 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
   wrap.style.display = "block";
   document.getElementById("priorityBox").style.display = "block";
 
-  const banner = document.getElementById("safetyBanner");
-  if (banner) {
-    if (safetyNote) {
-      banner.innerHTML = "⚠️ " + (safetyNote.kind === "switched"
-        ? `Fastest route runs through neighborhoods averaging <b>${fmtScore(safetyNote.from.neighborhoodRisk)}</b> risk — above your threshold of <b>${fmtScore(safetyNote.threshold)}</b>. Recommending a safer route instead (<b>${fmtScore(safetyNote.to.neighborhoodRisk)}</b> risk).`
-        : `No alternative stays under your safety threshold of <b>${fmtScore(safetyNote.threshold)}</b>. Showing the lowest-risk option available (<b>${fmtScore(safetyNote.best.neighborhoodRisk)}</b> risk).`);
-      banner.style.display = "block";
-    } else {
-      banner.style.display = "none";
-      banner.innerHTML = "";
-    }
-  }
-
   const cards = document.getElementById("routeCards");
   cards.innerHTML = "";
 
@@ -1240,20 +1223,21 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
     return `<span class="hood-chip" style="border-color:${color}">${escapeHtml(n.name)} <b style="color:${color}">${fmtScore(n.risk)}</b></span>`;
   }).join("");
 
-  const card = (s, isRec) => {
+  const card = (s) => {
     const tier = routeTier(s.dangerScore);
     const hasNeighborhoodData = s.neighborhoodBreakdown.length > 0;
     const nbColor = RISK_CATEGORY_COLOR[riskCategory(s.neighborhoodRisk)];
+    const neighborhoods = s.neighborhoodBreakdown.slice().sort((a, b) => b.metres - a.metres);
+    const neighborhoodLabel = neighborhoods.length ? neighborhoods.slice(0, 2).map((n) => escapeHtml(n.name)).join(" · ") : "Pittsburgh";
     return `
-    <div class="route-card ${isRec ? "recommended" : ""}">
+    <div class="route-card recommended">
       <h3>
-        <span class="swatch" style="background:${isRec ? "#22c55e" : "#7f8ea3"}"></span>
-        ${isRec ? "Recommended" : "Fastest route"}
-        ${isRec && recommended !== fastest ? '<span class="badge">safer</span>' : ""}
+        <span class="swatch" style="background:#22c55e"></span>
+        ${neighborhoodLabel}
       </h3>
       <div class="metrics">
-        <span><b>${s.durationText || "—"}</b></span>
         <span><b>${s.distanceText || "—"}</b></span>
+        <span><b>${s.durationText || "—"}</b></span>
         <span><b>${s.count}</b> event${s.count === 1 ? "" : "s"}</span>
       </div>
       <div class="danger-row">
@@ -1271,11 +1255,9 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
     </div>`;
   };
 
-  // Show fastest first, then recommended (unless identical).
-  cards.insertAdjacentHTML("beforeend", card(fastest, fastest === recommended));
-  if (recommended !== fastest) cards.insertAdjacentHTML("beforeend", card(recommended, true));
+  cards.insertAdjacentHTML("beforeend", card(recommended));
+  cards.style.display = "block";
 
-  document.getElementById("startNavBtn").style.display = navigating ? "none" : "flex";
 }
 
 /* --------------------------------------------------------------------------
