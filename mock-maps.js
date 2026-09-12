@@ -233,7 +233,7 @@
   // Autocomplete is a no-op in demo mode (use click-to-set to place points).
   class Autocomplete { constructor() {} addListener() {} }
 
-  // Synthesize 3 driving routes between two points so the danger scorer has
+  // Synthesize 3 walking routes between two points so the danger scorer has
   // real alternatives to rank. Routes bow out by different perpendicular
   // offsets, so they pass through different events.
   function densify(a, b, stepM) {
@@ -256,10 +256,12 @@
   class DirectionsService {
     route(req, cb) {
       const o = req.origin, d = req.destination;
+      // Average pedestrian pace (~5 km/h), a touch slower on the bowed
+      // alternatives to account for less direct sidewalks/hills.
       const specs = [
-        { off: 0.0, speed: 34 },    // direct / fastest
-        { off: 0.012, speed: 30 },  // bow one way
-        { off: -0.012, speed: 30 }, // bow other way
+        { off: 0.0, speed: 5.0 },    // direct / fastest
+        { off: 0.012, speed: 4.6 },  // bow one way
+        { off: -0.012, speed: 4.6 }, // bow other way
       ];
       const routes = specs.map((s) => {
         const path = bowedRoute(o, d, s.off);
@@ -285,7 +287,7 @@
       Map: MockMap, Marker, Polyline, InfoWindow, Geocoder, LatLng, LatLngBounds, Point,
       DirectionsService,
       SymbolPath: { CIRCLE: 0 },
-      TravelMode: { DRIVING: "DRIVING" },
+      TravelMode: { DRIVING: "DRIVING", WALKING: "WALKING" },
       places: { Autocomplete },
       geometry: { poly: { isLocationOnEdge: () => false } },
     },

@@ -1,7 +1,7 @@
 /* ==========================================================================
- * Toronto Event-Aware Router
+ * Pittsburgh Event-Aware Router
  * - Pulls live road events from Toronto's CKAN Open Data "Road Restrictions"
- *   feed, draws them, and recommends the driving route that passes the fewest.
+ *   feed, draws them, and recommends the walking route that passes the fewest.
  * ======================================================================== */
 
 const CFG = window.CONFIG;
@@ -262,12 +262,6 @@ function neighborhoodThreshold() {
   const risk = document.getElementById("riskWeight");
   const v = risk ? +risk.value : CFG.DANGER.defaultSafety;
   return 100 - v;
-}
-
-function neighborhoodTier(avgRisk) {
-  if (avgRisk >= 60) return "High";
-  if (avgRisk >= 30) return "Medium";
-  return "Low";
 }
 
 // Boundaries and risk numbers load asynchronously and independently; once
@@ -630,7 +624,7 @@ function computeRoute() {
   directionsService.route(
     {
       origin, destination: dest,
-      travelMode: google.maps.TravelMode.DRIVING,
+      travelMode: google.maps.TravelMode.WALKING,
       provideRouteAlternatives: true,
     },
     (result, status) => {
@@ -738,7 +732,7 @@ function scoreAndRender(routes, fit = true) {
   const bestCost = scored.slice().sort((a, b) => a.cost - b.cost || a.durationSec - b.durationSec)[0];
 
   // The blended cost already leans away from dangerous neighborhoods as the
-  // slider rises, but it's still a soft tradeoff against drive time. Enforce
+  // slider rises, but it's still a soft tradeoff against walk time. Enforce
   // the slider as a hard ceiling too: if the best-cost route's average
   // neighborhood risk still exceeds what the user said they'd tolerate,
   // switch to the fastest route that actually satisfies it. If nothing does,
@@ -824,8 +818,6 @@ function routeTier(score) {
   return score >= t.high ? "High" : score >= t.medium ? "Medium" : "Low";
 }
 
-const NB_TIER_COLOR = { High: "#ef4444", Medium: "#f59e0b", Low: "#22c55e" };
-
 function renderSummary(fastest, recommended, scored, safetyNote) {
   const wrap = document.getElementById("summary");
   wrap.style.display = "block";
@@ -846,15 +838,16 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
   const cards = document.getElementById("routeCards");
   cards.innerHTML = "";
 
-  const hoodChips = (s) => s.neighborhoodBreakdown.slice(0, 3).map((n) => {
-    const tier = neighborhoodTier(n.risk);
-    return `<span class="hood-chip" style="border-color:${NB_TIER_COLOR[tier]}">${escapeHtml(n.name)} <b style="color:${NB_TIER_COLOR[tier]}">${fmtScore(n.risk)}</b></span>`;
+  // Top 3 by risk, not by how much of the route sat inside them.
+  const hoodChips = (s) => s.neighborhoodBreakdown.slice().sort((a, b) => b.risk - a.risk).slice(0, 3).map((n) => {
+    const color = RISK_CATEGORY_COLOR[riskCategory(n.risk)];
+    return `<span class="hood-chip" style="border-color:${color}">${escapeHtml(n.name)} <b style="color:${color}">${fmtScore(n.risk)}</b></span>`;
   }).join("");
 
   const card = (s, isRec) => {
     const tier = routeTier(s.dangerScore);
-    const nbTier = neighborhoodTier(s.neighborhoodRisk);
     const hasNeighborhoodData = s.neighborhoodBreakdown.length > 0;
+    const nbColor = RISK_CATEGORY_COLOR[riskCategory(s.neighborhoodRisk)];
     return `
     <div class="route-card ${isRec ? "recommended" : ""}">
       <h3>
@@ -869,13 +862,13 @@ function renderSummary(fastest, recommended, scored, safetyNote) {
       </div>
       <div class="danger-row">
         <span class="danger-tag" style="background:${TIER_COLOR[tier] || "#64748b"}">${tier} risk</span>
-        <div class="danger-bar"><div style="width:${Math.min(100, (s.dangerScore / (CFG.DANGER.tiers.high * 1.5)) * 100)}%"></div></div>
+        <div class="danger-bar"><div style="width:${Math.min(100, (s.dangerScore / (CFG.DANGER.tiers.high * 1.5)) * 100)}%;background:${TIER_COLOR[tier] || "#64748b"}"></div></div>
         <span class="danger-num">${fmtScore(s.dangerScore)}</span>
       </div>
       ${hasNeighborhoodData ? `
       <div class="danger-row">
-        <span class="danger-tag" style="background:${NB_TIER_COLOR[nbTier]}">${nbTier} area risk</span>
-        <div class="danger-bar"><div style="width:${Math.min(100, s.neighborhoodRisk)}%;background:linear-gradient(90deg,#22c55e,#eab308,#ef4444)"></div></div>
+        <span class="danger-tag" style="background:${nbColor}">${riskCategory(s.neighborhoodRisk)}</span>
+        <div class="danger-bar"><div style="width:${Math.min(100, s.neighborhoodRisk)}%;background:${nbColor}"></div></div>
         <span class="danger-num">${fmtScore(s.neighborhoodRisk)}</span>
       </div>
       <div class="hood-chips">${hoodChips(s)}</div>` : ""}

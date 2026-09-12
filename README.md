@@ -1,7 +1,7 @@
 # Toronto Event-Aware Router
 
 A single-page map that draws **live road events** from the City of Toronto's
-**CKAN** Open Data portal and recommends the driving route that passes the
+**CKAN** Open Data portal and recommends the walking route that passes the
 **fewest** of them — "rerouting based on local events."
 
 ![panel: search + legend | map: events + routes]
@@ -21,14 +21,14 @@ A single-page map that draws **live road events** from the City of Toronto's
   route highlighted, shows each route's risk tier + score, and lists the events
   on the recommended path worst-first (with High/Medium/Low chips and distance).
 - A **Fastest ⟷ Safest** slider re-scores the routes live, letting you trade
-  drive time against risk without another API call.
+  walk time against risk without another API call.
 
 ## How rerouting weighs danger
 
 Each route's cost is a single number:
 
 ```
-cost = drive_minutes + lambda * danger_score
+cost = walk_minutes + lambda * danger_score
 ```
 
 `lambda` (minutes you'll detour per danger point) comes from the slider. The

@@ -46,7 +46,7 @@ window.CONFIG = {
   ROUTE_PROXIMITY_METRES: 150,
 
   // --- Danger / rerouting model -------------------------------------------
-  // A route's cost = drive_minutes + lambda * danger_score, where lambda is
+  // A route's cost = walk_minutes + lambda * danger_score, where lambda is
   // set by the "Fastest <-> Safest" slider. Each event's danger is:
   //   severity x type x direction x roadClass x active  (then x proximity)
   // Tune any of these weights to change how strongly the router avoids things.
