@@ -759,6 +759,8 @@ function startNavigation() {
     return;
   }
   navigating = true;
+  lastRerouteLatLng = null;
+  lastRerouteTime = 0;
   document.getElementById("navBar").style.display = "flex";
   document.getElementById("startNavBtn").style.display = "none";
   watchLocation(onNavPosition);
@@ -781,6 +783,40 @@ function onNavPosition(pos, err) {
   map.panTo(latLng);
   if (map.setZoom) map.setZoom(17);
   updateNavBanner(latLng);
+  maybeRerouteFromPosition(latLng);
+}
+
+// Re-request Directions from wherever the user actually is so the drawn
+// route keeps matching the road ahead instead of the path from the original
+// search point. Throttled by distance/time so normal GPS jitter while
+// walking doesn't fire an API call on every tick.
+let lastRerouteLatLng = null;
+let lastRerouteTime = 0;
+const REROUTE_MIN_METRES = 20;
+const REROUTE_MIN_MS = 8000;
+
+function maybeRerouteFromPosition(latLng) {
+  if (!navigating || !dest) return;
+  const now = Date.now();
+  if (lastRerouteLatLng) {
+    const moved = haversineMetres(lastRerouteLatLng, latLng);
+    if (moved < REROUTE_MIN_METRES && now - lastRerouteTime < REROUTE_MIN_MS) return;
+  }
+  lastRerouteLatLng = latLng;
+  lastRerouteTime = now;
+  directionsService.route(
+    {
+      origin: latLng, destination: dest,
+      travelMode: google.maps.TravelMode.WALKING,
+      provideRouteAlternatives: true,
+    },
+    (result, status) => {
+      // Navigation may have been stopped (or arrival triggered) while this
+      // request was in flight — don't resurrect the route display if so.
+      if (status !== "OK" || !navigating) return;
+      scoreAndRender(result.routes, false);
+    }
+  );
 }
 
 function placeUserLocationMarker(latLng) {
