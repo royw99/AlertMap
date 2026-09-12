@@ -1,0 +1,16 @@
+[project]
+name = "alertmap"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Calpha",email = "gabrielnsouto100@gmail.com"}
+]
+requires-python = ">=3.12"
+dependencies = [
+    "ckanapi (>=4.11,<5.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
